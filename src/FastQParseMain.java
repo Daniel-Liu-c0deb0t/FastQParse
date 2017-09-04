@@ -60,7 +60,7 @@ public class FastQParseMain {
 	private static int maxLength = Integer.MAX_VALUE; //every DNA sequence with total length > this will be undetermined
 	private static ArrayList<Adapter> adaptersF = new ArrayList<Adapter>(); //adapters to remove from forwards reads (file 1)
 	private static ArrayList<Adapter> adaptersR = new ArrayList<Adapter>(); //adapters to remove from reversed reads (file 2)
-	private static int minOverlap = 3; //minimum overlap when matching adapters/barcode
+	private static int minOverlap = Integer.MAX_VALUE; //minimum overlap when matching adapters/barcode
 	private static boolean trimAlgorithm = false; //false = 1st method, true = 2nd method
 	private static int qualityTrimQScore1 = 0; //quality under this will be trimmed in quality trimming (from start)
 	private static int qualityTrimQScore2 = 0; //quality under this will be trimmed in quality trimming (from end)
