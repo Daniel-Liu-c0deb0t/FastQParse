@@ -23,8 +23,8 @@ import java.util.zip.GZIPOutputStream;
 public class FastQParseMain {
 	private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("###,###.#######"); //standard number format
 	private static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE MMM dd HH:mm:ss zzz yyyy"); //standard date format
-	private static final int BUFFER_SIZE = 1048576; //buffer size for buffered reader/writer
-	private static final int BUFFER_SIZE_GZIP = 1048576; //buffer size for gzip stream
+	private static final int BUFFER_SIZE = 2097152; //buffer size for buffered reader/writer
+	private static final int BUFFER_SIZE_GZIP = 2097152; //buffer size for gzip stream
 	private static final int BUFFER_SIZE_LOG = 16384; //buffer size for log/stats files
 	private static final String description2 = "+"; //the second description (3rd line in each read)
 	
@@ -67,7 +67,7 @@ public class FastQParseMain {
 	private static int qualityTrimLength = 1; //length that is needed for quality trim algorithm 1 and 2
 	private static boolean mergeAlgorithm = false; //false = 1st method, true = 2nd method
 	private static double trimNPercent = 2.0; //trim leading and trailing 'N' percentage
-	private static boolean allowIndels = true; //allow insertions and deletions
+	private static boolean allowIndels = false; //allow insertions and deletions
 	private static boolean adapterAlgorithm = false; //false = 1st method, true = 2nd method
 	private static boolean checkReversedReads = false; //whether to check for an enzyme in reversed reads
 	
@@ -1696,8 +1696,8 @@ public class FastQParseMain {
 					}else{
 						trimNPercent = 0.5;
 					}
-				}else if(args[i].equals("--noindels")){
-					allowIndels = false;
+				}else if(args[i].equals("--indels")){
+					allowIndels = true;
 				}else if(args[i].equals("--altadapter")){
 					adapterAlgorithm = true;
 				}else if(args[i].equals("--altqfilter")){
@@ -1908,8 +1908,8 @@ public class FastQParseMain {
 					}else{
 						trimNPercent = 0.5;
 					}
-				}else if(args[i].equals("--noindels")){
-					allowIndels = false;
+				}else if(args[i].equals("--indels")){
+					allowIndels = true;
 				}else if(args[i].equals("--altadapter")){
 					adapterAlgorithm = true;
 				}else if(args[i].equals("--altqfilter")){
