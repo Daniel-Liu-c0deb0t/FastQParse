@@ -195,14 +195,14 @@ public class UtilMethods {
 	}
 	
 	//fuzzy match where N can stand for any character
-	public static boolean matchWithN(String a, String b, int max, boolean indel){
-		return distWithN(a, b, indel) <= max;
+	public static boolean matchWithN(String a, String b, int max, boolean indel, boolean wildcard){
+		return distWithN(a, b, indel, wildcard) <= max;
 	}
 	
 	//distance between two strings
 	//N can stand for any character
 	//support for insertions, deletions, and substitutions
-	public static int distWithN(String a, String b, boolean indel){
+	public static int distWithN(String a, String b, boolean indel, boolean wildcard){
 		if(a.isEmpty() || b.isEmpty())
 			return Math.max(a.length(), b.length());
 		
@@ -220,7 +220,8 @@ public class UtilMethods {
 				curr[0] = i;
 				for(int j = 1; j <= a.length(); j++){
 					if(Character.toUpperCase(b.charAt(i - 1)) == Character.toUpperCase(a.charAt(j - 1)) ||
-							Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'){
+							Character.toUpperCase(b.charAt(i - 1)) == '-' || Character.toUpperCase(a.charAt(j - 1)) == '-' ||
+							(wildcard && (Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'))){
 						curr[j] = i == 1 ? (j - 1) : prev[j - 1]; //if bp equals or they equal N
 					}else{ //insertion, deletion, and substitution
 						curr[j] = Math.min(Math.min((i == 1 ? j : prev[j]) + 1, curr[j - 1] + 1), (i == 1 ? (j - 1) : prev[j - 1]) + 1);
@@ -235,10 +236,12 @@ public class UtilMethods {
 			return curr[a.length()];
 		}else{ //count mismatches (substitution distance)
 			int minLen = Math.min(a.length(), b.length());
-			int wrong = 0;
+			int wrong = Math.max(a.length(), b.length()) - minLen;
 			
 			for(int i = 0; i < minLen; i++){
-				if(Character.toUpperCase(a.charAt(i)) == 'N' || Character.toUpperCase(b.charAt(i)) == 'N')
+				if(Character.toUpperCase(a.charAt(i)) == '-' || Character.toUpperCase(b.charAt(i)) == '-')
+					continue;
+				if(wildcard && (Character.toUpperCase(a.charAt(i)) == 'N' || Character.toUpperCase(b.charAt(i)) == 'N'))
 					continue;
 				if(Character.toUpperCase(a.charAt(i)) != Character.toUpperCase(b.charAt(i))){
 					wrong++;
@@ -253,12 +256,12 @@ public class UtilMethods {
 	//returns a list of string end positions + 1
 	//set offset to Integer.MAX_VALUE for searching
 	//set minOverlap to Integer.MAX_VALUE to have no 'N' appended to the beginning of the read
-	public static ArrayList<Pair<Integer>> searchWithN(String a, String b, int max, int offset, boolean indel, boolean bestOnly, int minOverlap){
+	public static ArrayList<Pair<Integer>> searchWithN(String a, String b, int max, int offset, boolean indel, boolean bestOnly, int minOverlap, boolean wildcard){
 		if(b.isEmpty())
 			return new ArrayList<Pair<Integer>>(Arrays.asList(new Pair<Integer>(0, 0)));
 		
 		if(minOverlap < b.length()){
-			a = makeStr('N', b.length() - minOverlap) + a;
+			a = makeStr('-', b.length() - minOverlap) + a;
 			offset += b.length() - minOverlap;
 		}
 		
@@ -272,7 +275,8 @@ public class UtilMethods {
 				curr[0] = i;
 				for(int j = 1; j <= a.length(); j++){
 					if(Character.toUpperCase(b.charAt(i - 1)) == Character.toUpperCase(a.charAt(j - 1)) ||
-							Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'){
+							Character.toUpperCase(b.charAt(i - 1)) == '-' || Character.toUpperCase(a.charAt(j - 1)) == '-' ||
+							(wildcard && (Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'))){
 						curr[j] = i == 1 ? Math.max(0, j - 1 - offset) : prev[j - 1];
 					}else{
 						curr[j] = Math.min(Math.min((i == 1 ? Math.max(0, j - offset) : prev[j]) + 1, curr[j - 1] + 1), (i == 1 ? Math.max(0, j - 1 - offset) : prev[j - 1]) + 1);
@@ -317,7 +321,7 @@ public class UtilMethods {
 			int min = Integer.MAX_VALUE;
 			
 			for(int i = 0; i <= a.length() - b.length(); i++){
-				int dist = distWithN(a.substring(i, i + b.length()), b, indel);
+				int dist = distWithN(a.substring(i, i + b.length()), b, indel, wildcard);
 				if(bestOnly){
 					min = Math.min(min, dist);
 				}else{
@@ -329,7 +333,7 @@ public class UtilMethods {
 			
 			if(bestOnly && min <= max){
 				for(int i = 0; i <= a.length() - b.length(); i++){
-					if(distWithN(a.substring(i, i + b.length()), b, indel) == min){
+					if(distWithN(a.substring(i, i + b.length()), b, indel, wildcard) == min){
 						result.add(new Pair<Integer>(i + b.length() - (minOverlap < b.length() ? (b.length() - minOverlap) : 0), min));
 					}
 				}
@@ -398,7 +402,7 @@ public class UtilMethods {
 	//merge two reads
 	//increase quality if two base pairs are equal
 	//decrease quality if two base pairs are not equal
-	public static String[] mergeReads(String s1, String q1, String s2, String q2, int editMax, boolean algorithm){
+	public static String[] mergeReads(String s1, String q1, String s2, String q2, int editMax, boolean algorithm, boolean wildcard){
 		s2 = reverseComplement(s2);
 		q2 = reverse(q2);
 		
@@ -414,7 +418,7 @@ public class UtilMethods {
 					e1 = toError(q1.charAt(i + j));
 					e2 = toError(q2.charAt(j));
 					
-					if(Character.toUpperCase(s1.charAt(i + j)) == 'N' || Character.toUpperCase(s2.charAt(j)) == 'N'){
+					if(wildcard && (Character.toUpperCase(s1.charAt(i + j)) == 'N' || Character.toUpperCase(s2.charAt(j)) == 'N')){
 						score += 0.5;
 					}else if(s1.charAt(i + j) == s2.charAt(j)){
 						score += (1.0 - e1) * (1.0 - e2) + e1 * e2 / 3.0;
@@ -433,7 +437,7 @@ public class UtilMethods {
 			int maxNonError = 0;
 			int nonError = 0;
 			for(int i = 0; i < s1.length(); i++){
-				error = distWithN(s1.substring(i, Math.min(s1.length(), i + s2.length())), s2.substring(0, Math.min(s2.length(), s1.length() - i)), false);
+				error = distWithN(s1.substring(i, Math.min(s1.length(), i + s2.length())), s2.substring(0, Math.min(s2.length(), s1.length() - i)), false, wildcard);
 				nonError = Math.min(s2.length(), s1.length() - i) - error;
 				if(error <= editMax && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 					start = i;
@@ -453,7 +457,7 @@ public class UtilMethods {
 					sb1.append(s1.charAt(i));
 					sb2.append(q1.charAt(i));
 				}else if(i < Math.min(s1.length(), start + s2.length())){
-					if(Character.toUpperCase(s1.charAt(i)) == 'N' || Character.toUpperCase(s2.charAt(i - start)) == 'N' || s1.charAt(i) == s2.charAt(i - start)){
+					if((wildcard && (Character.toUpperCase(s1.charAt(i)) == 'N' || Character.toUpperCase(s2.charAt(i - start)) == 'N')) || s1.charAt(i) == s2.charAt(i - start)){
 						sb1.append(s1.charAt(i));
 						sb2.append(toQualityChar(sameError(toError(q1.charAt(i)), toError(q2.charAt(i - start)))));
 					}else{
@@ -473,18 +477,18 @@ public class UtilMethods {
 	}
 	
 	//remove adapters from sequence and quality strings
-	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, int editMax, int minOverlap, boolean indel, boolean mode){
+	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, int editMax, int minOverlap, boolean indel, boolean mode, boolean wildcard){
 		if(mode){ //allow the adapter to hang off each end of the read
 			for(int i = 0; i < adapters.size(); i++){
 				Adapter a = adapters.get(i);
 				if(a.anchored){
 					if(a.isStart){
-						if(matchWithN(s.substring(0, a.str.length()), a.str, editMax, indel)){
+						if(matchWithN(s.substring(0, a.str.length()), a.str, editMax, indel, wildcard)){
 							s = s.substring(a.str.length());
 							q = q.substring(a.str.length());
 						}
 					}else{
-						if(matchWithN(s.substring(s.length() - a.str.length()), a.str, editMax, indel)){
+						if(matchWithN(s.substring(s.length() - a.str.length()), a.str, editMax, indel, wildcard)){
 							s = s.substring(0, s.length() - a.str.length());
 							q = q.substring(0, q.length() - a.str.length());
 						}
@@ -497,7 +501,7 @@ public class UtilMethods {
 					int bestIndex = -1;
 					for(int j = a.isStart ? minOverlap : s.length() + a.str.length() - minOverlap; a.isStart ? j <= s.length() + a.str.length() - minOverlap : j >= minOverlap; j += a.isStart ? 1 : -1){
 						if(a.isStart && j <= a.str.length()){
-							error = distWithN(s.substring(0, j), a.str.substring(a.str.length() - j), indel);
+							error = distWithN(s.substring(0, j), a.str.substring(a.str.length() - j), indel, wildcard);
 							nonError = j - error;
 							if(error <= editMax && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 								bestIndex = j;
@@ -505,7 +509,7 @@ public class UtilMethods {
 								minError = error;
 							}
 						}else if(j <= s.length()){
-							error = distWithN(s.substring(j - a.str.length(), j), a.str, indel);
+							error = distWithN(s.substring(j - a.str.length(), j), a.str, indel, wildcard);
 							nonError = a.str.length() - error;
 							if(error <= editMax && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 								bestIndex = j;
@@ -513,7 +517,7 @@ public class UtilMethods {
 								minError = error;
 							}
 						}else if(!a.isStart){
-							error = distWithN(s.substring(j - a.str.length()), a.str.substring(0, a.str.length() - j + s.length()), indel);
+							error = distWithN(s.substring(j - a.str.length()), a.str.substring(0, a.str.length() - j + s.length()), indel, wildcard);
 							nonError = a.str.length() - j + s.length() - error;
 							if(error <= editMax && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 								bestIndex = j;
@@ -542,9 +546,9 @@ public class UtilMethods {
 				
 				ArrayList<Pair<Integer>> matches;
 				if(a.anchored){
-					matches = searchWithN(a.isStart ? s.substring(0, a.str.length() + editMax) : reverse(s).substring(0, a.str.length() + editMax), a.isStart ? a.str : reverse(a.str), editMax, Integer.MAX_VALUE, indel, true, Integer.MAX_VALUE);
+					matches = searchWithN(a.isStart ? s.substring(0, a.str.length() + editMax) : reverse(s).substring(0, a.str.length() + editMax), a.isStart ? a.str : reverse(a.str), editMax, Integer.MAX_VALUE, indel, true, Integer.MAX_VALUE, wildcard);
 				}else{ //because searchWithN can only find ending locations, the 3' adapters need to be reversed along with the read
-					matches = searchWithN(a.isStart ? s : reverse(s), a.isStart ? a.str : reverse(a.str), editMax, Integer.MAX_VALUE, indel, true, minOverlap);
+					matches = searchWithN(a.isStart ? s : reverse(s), a.isStart ? a.str : reverse(a.str), editMax, Integer.MAX_VALUE, indel, true, minOverlap, wildcard);
 				}
 				if(!matches.isEmpty()){
 					if(a.isStart){
