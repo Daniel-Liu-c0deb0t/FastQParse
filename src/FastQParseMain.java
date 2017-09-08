@@ -71,7 +71,7 @@ public class FastQParseMain {
 	private static boolean allowIndels = false; //allow insertions and deletions
 	private static boolean adapterAlgorithm = false; //false = 1st method, true = 2nd method
 	private static boolean checkReversedReads = false; //whether to check for barcodes/enzymes in reversed reads
-	private static boolean wildcard = false; //whether to check for undetermined bp 'N'
+	private static boolean wildcard = true; //whether to check for undetermined bp 'N'
 	
 	private enum Mode{ //features
 		DEMULTIPLEX("Demultiplex", "demultiplex"), DEDUP("Deduplicate Reads", "dedup"),
@@ -1712,8 +1712,8 @@ public class FastQParseMain {
 					filterAlgorithm = true;
 				}else if(args[i].equals("--checkreversed")){
 					checkReversedReads = true;
-				}else if(args[i].equals("--wildcard")){
-					wildcard = true;
+				}else if(args[i].equals("--nowildcard")){
+					wildcard = false;
 				}
 			}
 			boolean isDirClear = false;
@@ -1828,8 +1828,8 @@ public class FastQParseMain {
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--altmerge")){
 					mergeAlgorithm = true;
-				}else if(args[i].equals("--wildcard")){
-					wildcard = true;
+				}else if(args[i].equals("--nowildcard")){
+					wildcard = false;
 				}
 			}
 			if(outputDir == null){
@@ -1926,8 +1926,8 @@ public class FastQParseMain {
 					adapterAlgorithm = true;
 				}else if(args[i].equals("--altqfilter")){
 					filterAlgorithm = true;
-				}else if(args[i].equals("--wildcard")){
-					wildcard = true;
+				}else if(args[i].equals("--nowildcard")){
+					wildcard = false;
 				}
 			}
 			if(outputDir == null){
