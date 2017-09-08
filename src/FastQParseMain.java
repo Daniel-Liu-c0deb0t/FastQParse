@@ -448,7 +448,6 @@ public class FastQParseMain {
 			String adaptersFString = adaptersF.toString();
 			logWriter.println("Read Adapters: " + adaptersFString.substring(1, adaptersFString.length() - 1));
 			logWriter.println("Minimum Adapter Overlap: " + minOverlapA);
-			logWriter.println("Minimum Barcode Overlap: " + minOverlapB);
 			logWriter.println("Remove Adapter Algorithm: " + (adapterAlgorithm ? "2" : "1"));
 			logWriter.println("Quality Trim Algorithm: " + (trimAlgorithm ? "2" : "1"));
 			logWriter.println("5' Quality Trim Score Threshold: " + qualityTrimQScore1);
@@ -1898,8 +1897,6 @@ public class FastQParseMain {
 					}
 				}else if(args[i].equals("--minoverlapa")){
 					minOverlapA = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--minoverlapb")){
-					minOverlapB = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
 				}else if(args[i].equals("--qtrim") || args[i].equals("-q")){
