@@ -60,7 +60,8 @@ public class FastQParseMain {
 	private static int maxLength = Integer.MAX_VALUE; //every DNA sequence with total length > this will be undetermined
 	private static ArrayList<Adapter> adaptersF = new ArrayList<Adapter>(); //adapters to remove from forwards reads (file 1)
 	private static ArrayList<Adapter> adaptersR = new ArrayList<Adapter>(); //adapters to remove from reversed reads (file 2)
-	private static int minOverlap = Integer.MAX_VALUE; //minimum overlap when matching adapters/barcode
+	private static int minOverlapA = Integer.MAX_VALUE; //minimum overlap when matching adapters
+	private static int minOverlapB = Integer.MAX_VALUE; //minimum overlap when matching barcodes
 	private static boolean trimAlgorithm = false; //false = 1st method, true = 2nd method
 	private static int qualityTrimQScore1 = 0; //quality under this will be trimmed in quality trimming (from start)
 	private static int qualityTrimQScore2 = 0; //quality under this will be trimmed in quality trimming (from end)
@@ -180,7 +181,8 @@ public class FastQParseMain {
 				String adaptersRString = adaptersR.toString();
 				logWriter.println("Reversed Read Adapters: " + adaptersRString.substring(1, adaptersRString.length() - 1));
 			}
-			logWriter.println("Minimum Barcode and Adapter Overlap: " + minOverlap);
+			logWriter.println("Minimum Adapter Overlap: " + minOverlapA);
+			logWriter.println("Minimum Barcode Overlap: " + minOverlapB);
 			logWriter.println("Remove Adapter Algorithm: " + (adapterAlgorithm ? "2" : "1"));
 			logWriter.println("Quality Trim Algorithm: " + (trimAlgorithm ? "2" : "1"));
 			logWriter.println("5' Quality Trim Score Threshold: " + qualityTrimQScore1);
@@ -445,7 +447,8 @@ public class FastQParseMain {
 			logWriter.println("Quality Filter Algorithm: " + (filterAlgorithm ? "2" : "1"));
 			String adaptersFString = adaptersF.toString();
 			logWriter.println("Read Adapters: " + adaptersFString.substring(1, adaptersFString.length() - 1));
-			logWriter.println("Minimum Adapter Overlap: " + minOverlap);
+			logWriter.println("Minimum Adapter Overlap: " + minOverlapA);
+			logWriter.println("Minimum Barcode Overlap: " + minOverlapB);
 			logWriter.println("Remove Adapter Algorithm: " + (adapterAlgorithm ? "2" : "1"));
 			logWriter.println("Quality Trim Algorithm: " + (trimAlgorithm ? "2" : "1"));
 			logWriter.println("5' Quality Trim Score Threshold: " + qualityTrimQScore1);
@@ -610,7 +613,7 @@ public class FastQParseMain {
 					totalQualityTrimmed++;
 				}
 				//remove adapters
-				String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMax, minOverlap, allowIndels, adapterAlgorithm, wildcard);
+				String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMax, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
 				if(qualityTrimmed[0].length() != removedAdapters[0].length()){
 					hasRemovedAdapters++;
 					totalRemovedAdapters++;
@@ -634,7 +637,7 @@ public class FastQParseMain {
 						hasQualityTrimmed++;
 						totalQualityTrimmed++;
 					}
-					removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersR, editMax, minOverlap, allowIndels, adapterAlgorithm, wildcard);
+					removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersR, editMax, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
 					if(qualityTrimmed[0].length() != removedAdapters[0].length()){
 						hasRemovedAdapters++;
 						totalRemovedAdapters++;
@@ -649,7 +652,7 @@ public class FastQParseMain {
 				int minEdit = Integer.MAX_VALUE;
 				if(indexFile == null){ //check for enzyme and barcode in forwards reads
 					for(int i = 0; i < sampleDNAF.size(); i++){
-						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines1[1].substring(0, Math.min(lines1[1].length(), maxOffset + sampleDNAF.get(i).length() + (allowIndels ? editMax : 0))), sampleDNAF.get(i), editMax, maxOffset, allowIndels, false, minOverlap, wildcard);
+						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines1[1].substring(0, Math.min(lines1[1].length(), maxOffset + sampleDNAF.get(i).length() + (allowIndels ? editMax : 0))), sampleDNAF.get(i), editMax, maxOffset, allowIndels, false, minOverlapB, wildcard);
 						for(int j = 0; j < matches.size(); j++){
 							for(int k = 0; k < constEnzymesF.size(); k++){
 								ArrayList<Pair<Integer>> enzymeMatches = UtilMethods.searchWithN(lines1[1].substring(matches.get(j).a/* + randUMILength*/, Math.min(lines1[1].length(), maxOffset + matches.get(j).a + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndels ? editMax : 0))), constEnzymesF.get(k), editMax, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
@@ -665,7 +668,7 @@ public class FastQParseMain {
 					}
 				}else{ //check for barcode in index reads
 					for(int i = 0; i < sampleDNAF.size(); i++){
-						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines3[1].substring(0, Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndels ? editMax : 0))), sampleDNAF.get(i), editMax, 0, allowIndels, true, minOverlap, wildcard);
+						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines3[1].substring(0, Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndels ? editMax : 0))), sampleDNAF.get(i), editMax, 0, allowIndels, true, minOverlapB, wildcard);
 						if(!matches.isEmpty()){
 							if(matches.get(matches.size() - 1).b <= minEdit && (matches.get(matches.size() - 1).b < minEdit || matches.get(matches.size() - 1).a > barcodeEnd)){
 								barcodeIndex = i;
@@ -701,7 +704,7 @@ public class FastQParseMain {
 //										}
 //									}
 //								}
-								ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + (hasReversedBarcode ? sampleDNAR.get(barcodeIndex).length() : sampleDNAF.get(barcodeIndex).length()) + (allowIndels ? editMax : 0))), hasReversedBarcode ? sampleDNAR.get(barcodeIndex) : UtilMethods.complement(sampleDNAF.get(barcodeIndex)), editMax, maxOffset, allowIndels, false, minOverlap, wildcard);
+								ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + (hasReversedBarcode ? sampleDNAR.get(barcodeIndex).length() : sampleDNAF.get(barcodeIndex).length()) + (allowIndels ? editMax : 0))), hasReversedBarcode ? sampleDNAR.get(barcodeIndex) : UtilMethods.complement(sampleDNAF.get(barcodeIndex)), editMax, maxOffset, allowIndels, false, minOverlapB, wildcard);
 								for(int i = 0; i < matches.size(); i++){
 									for(int j = 0; j < constEnzymesR.size(); j++){
 										ArrayList<Pair<Integer>> enzymeMatches = UtilMethods.searchWithN(lines2[1].substring(matches.get(i).a/* + randUMILength*/, Math.min(lines2[1].length(), maxOffset + matches.get(i).a + /*randUMILength + */constEnzymesR.get(j).length() + (allowIndels ? editMax : 0))), constEnzymesR.get(j), editMax, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
@@ -1540,7 +1543,7 @@ public class FastQParseMain {
 					totalQualityTrimmed++;
 				}
 				//remove adapters
-				String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMax, minOverlap, allowIndels, adapterAlgorithm, wildcard);
+				String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMax, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
 				if(qualityTrimmed[0].length() != removedAdapters[0].length()){
 					totalRemovedAdapters++;
 				}
@@ -1679,8 +1682,10 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--minoverlap")){
-					minOverlap = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("--minoverlapa")){
+					minOverlapA = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("--minoverlapb")){
+					minOverlapB = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
 				}else if(args[i].equals("--qtrim") || args[i].equals("-q")){
@@ -1891,8 +1896,10 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--minoverlap")){
-					minOverlap = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("--minoverlapa")){
+					minOverlapA = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("--minoverlapb")){
+					minOverlapB = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
 				}else if(args[i].equals("--qtrim") || args[i].equals("-q")){
