@@ -280,7 +280,7 @@ public class FastQParseMain {
 				}
 				generatedSampleFiles = files.size();
 				if(generatedUndeterminedFile)
-					generatedSampleFiles++;
+					generatedSampleFiles += (inputFile2 == null ? 1 : 2) + (indexFile == null ? 0 : (inputFile2 == null ? 1 : 2));
 				logWriter.println();
 				logWriter.println("Deduplicating Completed.");
 				if(!saveTemp){
@@ -291,7 +291,7 @@ public class FastQParseMain {
 			}else{ //no deduplicating after demultiplex
 				generatedSampleFiles = demultiplexFile().size(); //demultiplex
 				if(generatedUndeterminedFile)
-					generatedSampleFiles++;
+					generatedSampleFiles += (inputFile2 == null ? 1 : 2) + (indexFile == null ? 0 : (inputFile2 == null ? 1 : 2));
 				logWriter.println();
 				logWriter.println("Demultiplex Completed.");
 				File tempFile = new File(outputDir + "temp" + File.separatorChar);
@@ -549,6 +549,8 @@ public class FastQParseMain {
 		BufferedWriter[] writers2 = null; //reversed output
 		BufferedWriter[] writers3 = null; //forwards index output
 		BufferedWriter[] writers4 = null; //reversed index output
+		BufferedWriter undeterminedWriter1 = null; //for reversed undetermined reads
+		BufferedWriter undeterminedWriter2 = null; //for reversed undetermined index reads
 		if(indexFile != null)
 			writers3 = new BufferedWriter[sampleMapF.size() + 1];
 		if(!mergePairedEnds && inputFile2 != null){
@@ -912,13 +914,19 @@ public class FastQParseMain {
 			if(!flag){
 				if(writers1[writers1.length - 1] == null){ //initialize writer for the undetermined file if it has not already been initialized
 					if(outputGZIP){
-						writers1[writers1.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-						if(indexFile != null)
-							writers3[writers3.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+						writers1[writers1.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+						undeterminedWriter1 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+						if(indexFile != null){
+							writers3[writers3.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+							undeterminedWriter2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+						}
 					}else{
-						writers1[writers1.length - 1] = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined.fastq"), BUFFER_SIZE);
-						if(indexFile != null)
-							writers3[writers3.length - 1] = new BufferedWriter(new FileWriter(outputDir + "index_undetermined.fastq"), BUFFER_SIZE);
+						writers1[writers1.length - 1] = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R1.fastq"), BUFFER_SIZE);
+						undeterminedWriter1 = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R2.fastq"), BUFFER_SIZE);
+						if(indexFile != null){
+							writers3[writers3.length - 1] = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R1.fastq"), BUFFER_SIZE);
+							undeterminedWriter2 = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R2.fastq"), BUFFER_SIZE);
+						}
 					}
 					generatedUndeterminedFile = true;
 				}
@@ -944,23 +952,23 @@ public class FastQParseMain {
 					writers3[writers3.length - 1].newLine();
 				}
 				if(inputFile2 != null){
-					writers1[writers1.length - 1].write(lines2[0]);
-					writers1[writers1.length - 1].newLine();
-					writers1[writers1.length - 1].write(tempR1);
-					writers1[writers1.length - 1].newLine();
-					writers1[writers1.length - 1].write(description2);
-					writers1[writers1.length - 1].newLine();
-					writers1[writers1.length - 1].write(tempR2);
-					writers1[writers1.length - 1].newLine();
+					undeterminedWriter1.write(lines2[0]);
+					undeterminedWriter1.newLine();
+					undeterminedWriter1.write(tempR1);
+					undeterminedWriter1.newLine();
+					undeterminedWriter1.write(description2);
+					undeterminedWriter1.newLine();
+					undeterminedWriter1.write(tempR2);
+					undeterminedWriter1.newLine();
 					if(indexFile2 != null){
-						writers3[writers3.length - 1].write(lines4[0]);
-						writers3[writers3.length - 1].newLine();
-						writers3[writers3.length - 1].write(lines4[1]);
-						writers3[writers3.length - 1].newLine();
-						writers3[writers3.length - 1].write(description2);
-						writers3[writers3.length - 1].newLine();
-						writers3[writers3.length - 1].write(lines4[3]);
-						writers3[writers3.length - 1].newLine();
+						undeterminedWriter2.write(lines4[0]);
+						undeterminedWriter2.newLine();
+						undeterminedWriter2.write(lines4[1]);
+						undeterminedWriter2.newLine();
+						undeterminedWriter2.write(description2);
+						undeterminedWriter2.newLine();
+						undeterminedWriter2.write(lines4[3]);
+						undeterminedWriter2.newLine();
 					}
 				}
 				undeterminedDNA += inputFile2 == null ? 1 : 2;
@@ -979,8 +987,13 @@ public class FastQParseMain {
 		}
 		if(inputFile2 != null){
 			reader2.close();
-			if(indexFile2 != null)
+			if(undeterminedWriter1 != null)
+				undeterminedWriter1.close();
+			if(indexFile2 != null){
 				reader4.close();
+				if(undeterminedWriter2 != null)
+					undeterminedWriter2.close();
+			}
 			if(!mergePairedEnds){
 				for(int i = 0; i < writers2.length; i++){
 					if(writers2[i] != null)
