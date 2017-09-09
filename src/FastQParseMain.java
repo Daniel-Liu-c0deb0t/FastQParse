@@ -656,6 +656,8 @@ public class FastQParseMain {
 				int barcodeIndex = -1;
 				int barcodeEnd = -1;
 				int enzymeEnd = -1;
+				int barcodeEnd2 = -1;
+				int enzymeEnd2 = -1;
 				int minEdit = Integer.MAX_VALUE;
 				int barcodeMatchCount = 0;
 				if(indexFile == null){ //check for enzyme and barcode in forwards reads
@@ -666,13 +668,40 @@ public class FastQParseMain {
 							for(int k = 0; k < constEnzymesF.size(); k++){
 								ArrayList<Pair<Integer>> enzymeMatches = UtilMethods.searchWithN(lines1[1].substring(matches.get(j).a/* + randUMILength*/, Math.min(lines1[1].length(), maxOffset + matches.get(j).a + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndels ? editMaxB : 0))), constEnzymesF.get(k), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
 								if(!enzymeMatches.isEmpty()){
-									isMatch = true;
-									if(matches.get(j).b <= minEdit && (matches.get(j).b < minEdit || matches.get(j).a > barcodeEnd)){
-										barcodeIndex = i;
-										barcodeEnd = matches.get(j).a;
-										enzymeEnd = matches.get(j).a + /*randUMILength + */enzymeMatches.get(enzymeMatches.size() - 1).a;
-										minEdit = matches.get(j).b;
-										break;
+									int tempBarcodeEnd2 = -1;
+									int tempEnzymeEnd2 = -1;
+									if(inputFile2 != null && checkReversedReads){
+										int minEdit2 = Integer.MAX_VALUE;
+										ArrayList<Pair<Integer>> rMatches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? editMaxB : 0))), hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
+										for(int ri = 0; ri < rMatches.size(); ri++){
+											for(int rj = 0; rj < constEnzymesR.size(); rj++){
+												ArrayList<Pair<Integer>> rEnzymeMatches = UtilMethods.searchWithN(lines2[1].substring(rMatches.get(ri).a/* + randUMILength*/, Math.min(lines2[1].length(), maxOffset + rMatches.get(ri).a + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndels ? editMaxB : 0))), constEnzymesR.get(rj), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
+												if(!rEnzymeMatches.isEmpty() && rMatches.get(ri).b <= minEdit2 && (rMatches.get(ri).b < minEdit2 || rMatches.get(ri).a > tempBarcodeEnd2)){
+													tempBarcodeEnd2 = rMatches.get(ri).a;
+													tempEnzymeEnd2 = rMatches.get(ri).a + /*randUMILength + */rEnzymeMatches.get(rEnzymeMatches.size() - 1).a;
+													minEdit2 = rMatches.get(ri).b;
+													break;
+												}
+											}
+										}
+									}
+									
+									if(inputFile2 == null || !checkReversedReads || tempEnzymeEnd2 != -1){
+										isMatch = true;
+										if(matches.get(j).b <= minEdit && (matches.get(j).b < minEdit || matches.get(j).a > barcodeEnd)){
+											barcodeIndex = i;
+											barcodeEnd = matches.get(j).a;
+											enzymeEnd = matches.get(j).a + /*randUMILength + */enzymeMatches.get(enzymeMatches.size() - 1).a;
+											if(checkReversedReads){
+												barcodeEnd2 = tempBarcodeEnd2;
+												enzymeEnd2 = tempEnzymeEnd2;
+											}else{
+												barcodeEnd2 = Math.max(0, Math.min(lines2[1].length(), barcodeEnd/* - randUMILength*/));
+												enzymeEnd2 = Math.max(0, Math.min(lines2[1].length(), enzymeEnd/* - randUMILength*/));
+											}
+											minEdit = matches.get(j).b;
+											break;
+										}
 									}
 								}
 							}
@@ -689,7 +718,12 @@ public class FastQParseMain {
 					for(int i = 0; i < sampleDNAF.size(); i++){
 						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines3[1].substring(0, Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndels ? editMaxB : 0))), sampleDNAF.get(i), editMaxB, 0, allowIndels, true, minOverlapB, wildcard);
 						if(!matches.isEmpty()){
-							if(matches.get(matches.size() - 1).b <= minEdit && (matches.get(matches.size() - 1).b < minEdit || matches.get(matches.size() - 1).a > barcodeEnd)){
+							ArrayList<Pair<Integer>> rMatches = null;
+							if(inputFile2 != null){
+								rMatches = UtilMethods.searchWithN(lines4[1].substring(randUMILength, Math.min(lines4[1].length(), randUMILength + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? editMaxB : 0))),
+										hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, 0, allowIndels, true, Integer.MAX_VALUE, wildcard);
+							}
+							if((inputFile2 == null || !rMatches.isEmpty()) && matches.get(matches.size() - 1).b <= minEdit && (matches.get(matches.size() - 1).b < minEdit || matches.get(matches.size() - 1).a > barcodeEnd)){
 								barcodeIndex = i;
 								barcodeEnd = matches.get(matches.size() - 1).a;
 								minEdit = matches.get(matches.size() - 1).b;
@@ -707,58 +741,6 @@ public class FastQParseMain {
 					DNACounts[barcodeIndex][3] += hasRemovedAdapters;
 					DNACounts[barcodeIndex][4] += hasQualityTrimmed;
 					
-					int barcodeEnd2 = -1;
-					int enzymeEnd2 = -1;
-					boolean reverseIndexReadOk = false;
-					if(inputFile2 != null){
-						if(checkReversedReads){ //check reversed reads for barcode and enzyme
-							minEdit = Integer.MAX_VALUE;
-							if(indexFile2 == null){
-//								for(int j = 0; j < constEnzymesR.size(); j++){
-//									ArrayList<Pair<Integer>> enzymeMatches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + constEnzymesR.get(j).length() + (allowIndels ? editMax : 0))), constEnzymesR.get(j), editMax, maxOffset, allowIndels, false, Integer.MAX_VALUE);
-//									for(int i = 0; i < enzymeMatches.size(); i++){
-//										ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines2[1].substring(enzymeMatches.get(i).a, Math.min(lines2[1].length(), maxOffset + enzymeMatches.get(i).a + (hasReversedBarcode ? sampleDNAR.get(barcodeIndex).length() : sampleDNAF.get(barcodeIndex).length()) + (allowIndels ? editMax : 0))),
-//												hasReversedBarcode ? sampleDNAR.get(barcodeIndex) : UtilMethods.complement(sampleDNAF.get(barcodeIndex)), editMax, maxOffset, allowIndels, true, Integer.MAX_VALUE);
-//										if(!matches.isEmpty()){
-//											if(matches.get(matches.size() - 1).b <= minEdit && (matches.get(matches.size() - 1).b < minEdit || matches.get(matches.size() - 1).a > barcodeEnd2)){
-//												barcodeEnd2 = enzymeMatches.get(i).a + matches.get(matches.size() - 1).a;
-//												enzymeEnd2 = enzymeMatches.get(i).a;
-//												minEdit = matches.get(matches.size() - 1).b;
-//											}
-//										}
-//									}
-//								}
-								ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + (hasReversedBarcode ? sampleDNAR.get(barcodeIndex).length() : sampleDNAF.get(barcodeIndex).length()) + (allowIndels ? editMaxB : 0))), hasReversedBarcode ? sampleDNAR.get(barcodeIndex) : UtilMethods.complement(sampleDNAF.get(barcodeIndex)), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
-								for(int i = 0; i < matches.size(); i++){
-									for(int j = 0; j < constEnzymesR.size(); j++){
-										ArrayList<Pair<Integer>> enzymeMatches = UtilMethods.searchWithN(lines2[1].substring(matches.get(i).a/* + randUMILength*/, Math.min(lines2[1].length(), maxOffset + matches.get(i).a + /*randUMILength + */constEnzymesR.get(j).length() + (allowIndels ? editMaxB : 0))), constEnzymesR.get(j), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
-										if(!enzymeMatches.isEmpty() && matches.get(i).b <= minEdit && (matches.get(i).b < minEdit || matches.get(i).a > barcodeEnd2)){
-											barcodeEnd2 = matches.get(i).a;
-											enzymeEnd2 = matches.get(i).a + /*randUMILength + */enzymeMatches.get(enzymeMatches.size() - 1).a;
-											minEdit = matches.get(i).b;
-											break;
-										}
-									}
-								}
-							}else{
-								ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines4[1].substring(randUMILength, Math.min(lines4[1].length(), randUMILength + (hasReversedBarcode ? sampleDNAR.get(barcodeIndex).length() : sampleDNAF.get(barcodeIndex).length()) + (allowIndels ? editMaxB : 0))),
-										hasReversedBarcode ? sampleDNAR.get(barcodeIndex) : UtilMethods.complement(sampleDNAF.get(barcodeIndex)), editMaxB, 0, allowIndels, true, Integer.MAX_VALUE, wildcard);
-								if(!matches.isEmpty()){
-									reverseIndexReadOk = true;
-								}
-							}
-						}else{ //do not check for barcode or enzyme
-							if(indexFile2 == null){ //still remove the barcode or enzyme from reversed reads
-								//barcodeEnd2 = Math.max(0, Math.min(lines2[1].length(), enzymeEnd/* - randUMILength*/));
-								//enzymeEnd2 = Math.max(0, Math.min(lines2[1].length(), enzymeEnd - barcodeEnd/* - randUMILength*/));
-								barcodeEnd2 = Math.max(0, Math.min(lines2[1].length(), barcodeEnd/* - randUMILength*/));
-								enzymeEnd2 = Math.max(0, Math.min(lines2[1].length(), enzymeEnd/* - randUMILength*/));
-							}else{
-								reverseIndexReadOk = true;
-							}
-						}
-					}
-					
 					//check if the quality is good enough
 					boolean qualityAcceptable;
 					if(filterAlgorithm){
@@ -767,7 +749,7 @@ public class FastQParseMain {
 						qualityAcceptable = UtilMethods.toQScore(lines1[3], 0) >= qualityFilter && (inputFile2 == null || UtilMethods.toQScore(lines2[3], 0) >= qualityFilter);
 					}
 					
-					if(((indexFile2 != null && reverseIndexReadOk) || inputFile2 == null || enzymeEnd2 != -1) && qualityAcceptable){
+					if(qualityAcceptable){
 						//initialize file writers if they are not already initialized
 						if(writers1[barcodeIndex] == null){
 							if(!outputGZIP && !removeFirstDup && !removeBestDup){
