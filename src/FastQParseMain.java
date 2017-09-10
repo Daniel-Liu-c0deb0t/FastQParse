@@ -899,17 +899,21 @@ public class FastQParseMain {
 				if(writers1[writers1.length - 1] == null){ //initialize writer for the undetermined file if it has not already been initialized
 					if(outputGZIP){
 						writers1[writers1.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-						undeterminedWriter1 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+						if(inputFile2 != null)
+							undeterminedWriter1 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
 						if(indexFile != null){
 							writers3[writers3.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-							undeterminedWriter2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+							if(inputFile2 != null)
+								undeterminedWriter2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
 						}
 					}else{
 						writers1[writers1.length - 1] = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R1.fastq"), BUFFER_SIZE);
-						undeterminedWriter1 = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R2.fastq"), BUFFER_SIZE);
+						if(inputFile2 != null)
+							undeterminedWriter1 = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R2.fastq"), BUFFER_SIZE);
 						if(indexFile != null){
 							writers3[writers3.length - 1] = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R1.fastq"), BUFFER_SIZE);
-							undeterminedWriter2 = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R2.fastq"), BUFFER_SIZE);
+							if(inputFile2 != null)
+								undeterminedWriter2 = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R2.fastq"), BUFFER_SIZE);
 						}
 					}
 					generatedUndeterminedFile = true;
