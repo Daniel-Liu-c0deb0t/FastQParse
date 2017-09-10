@@ -595,64 +595,8 @@ public class FastQParseMain {
 			
 			//check length of reads and the percentage of N
 			if(minLength <= lines1[1].length() && lines1[1].length() <= maxLength && (inputFile2 == null || (minLength <= lines2[1].length() && lines2[1].length() <= maxLength)) &&
-					((removeDNAWithNPercent >= 0 && UtilMethods.percentN(lines1[1]) <= removeDNAWithNPercent && (inputFile2 == null || UtilMethods.percentN(lines2[1]) <= removeDNAWithNPercent)) ||
-							(removeDNAWithNPercent < 0 && UtilMethods.countN(lines1[1]) <= 0 && (inputFile2 == null || UtilMethods.countN(lines2[1]) <= 0)))){
-				int hasQualityTrimmed = 0;
-				int hasRemovedAdapters = 0;
-				String[] temp;
-				String[] qualityTrimmed;
-				
-				//trim N
-				temp = UtilMethods.trimN(lines1[1], lines1[3], trimNPercent);
-				lines1[1] = temp[0];
-				lines1[3] = temp[1];
-				
-				//quality trim
-				if(trimAlgorithm){
-					temp = UtilMethods.qualityTrim2(lines1[1], lines1[3], qualityTrimQScore1, true, qualityTrimLength);
-					qualityTrimmed = UtilMethods.qualityTrim2(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
-				}else{
-					temp = UtilMethods.qualityTrim1(lines1[1], lines1[3], qualityTrimQScore1, true, qualityTrimLength);
-					qualityTrimmed = UtilMethods.qualityTrim1(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
-				}
-				if(lines1[1].length() != qualityTrimmed[0].length()){
-					hasQualityTrimmed++;
-					totalQualityTrimmed++;
-				}
-				//remove adapters
-				String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMaxA, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
-				if(qualityTrimmed[0].length() != removedAdapters[0].length()){
-					hasRemovedAdapters++;
-					totalRemovedAdapters++;
-				}
-				lines1[1] = removedAdapters[0];
-				lines1[3] = removedAdapters[1];
-				//do the same for reversed reads
-				if(inputFile2 != null){
-					temp = UtilMethods.trimN(lines2[1], lines2[3], trimNPercent);
-					lines2[1] = temp[0];
-					lines2[3] = temp[1];
-					
-					if(trimAlgorithm){
-						temp = UtilMethods.qualityTrim2(lines2[1], lines2[3], qualityTrimQScore1, true, qualityTrimLength);
-						qualityTrimmed = UtilMethods.qualityTrim2(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
-					}else{
-						temp = UtilMethods.qualityTrim1(lines2[1], lines2[3], qualityTrimQScore1, true, qualityTrimLength);
-						qualityTrimmed = UtilMethods.qualityTrim1(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
-					}
-					if(lines2[1].length() != qualityTrimmed[0].length()){
-						hasQualityTrimmed++;
-						totalQualityTrimmed++;
-					}
-					removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersR, editMaxA, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
-					if(qualityTrimmed[0].length() != removedAdapters[0].length()){
-						hasRemovedAdapters++;
-						totalRemovedAdapters++;
-					}
-					lines2[1] = removedAdapters[0];
-					lines2[3] = removedAdapters[1];
-				}
-				
+					(removeDNAWithNPercent == 0.0 || (removeDNAWithNPercent > 0.0 && UtilMethods.percentN(lines1[1]) <= removeDNAWithNPercent && (inputFile2 == null || UtilMethods.percentN(lines2[1]) <= removeDNAWithNPercent)) ||
+							(removeDNAWithNPercent < 0.0 && UtilMethods.countN(lines1[1]) <= 0 && (inputFile2 == null || UtilMethods.countN(lines2[1]) <= 0)))){
 				int barcodeIndex = -1;
 				int barcodeEnd = -1;
 				int enzymeEnd = -1;
@@ -739,10 +683,7 @@ public class FastQParseMain {
 					}
 				}
 				
-				if(barcodeIndex != -1){ //if barcode and enzyme is found for forwards reads
-					DNACounts[barcodeIndex][3] += hasRemovedAdapters;
-					DNACounts[barcodeIndex][4] += hasQualityTrimmed;
-					
+				if(barcodeIndex != -1){ //if barcode and enzyme is found for forwards and reversed reads
 					//check if the quality is good enough
 					boolean qualityAcceptable;
 					if(filterAlgorithm){
@@ -818,18 +759,12 @@ public class FastQParseMain {
 						if(inputFile2 != null){
 							if(indexFile2 == null){
 								if(removeEnzyme && removeBarRand){
-									//newSequence2 = lines2[1].substring(barcodeEnd2);
-									//newQuality2 = lines2[3].substring(barcodeEnd2);
 									newSequence2 = lines2[1].substring(enzymeEnd2);
 									newQuality2 = lines2[3].substring(enzymeEnd2);
 								}else if(removeEnzyme){
-									//newSequence2 = lines2[1].substring(enzymeEnd2);
-									//newQuality2 = lines2[3].substring(enzymeEnd2);
 									newSequence2 = lines2[1].substring(0, barcodeEnd2) + lines2[1].substring(enzymeEnd2);
 									newQuality2 = lines2[3].substring(0, barcodeEnd2) + lines2[3].substring(enzymeEnd2);
 								}else if(removeBarRand){
-									//newSequence2 = lines2[1].substring(0, enzymeEnd2) + lines2[1].substring(barcodeEnd2);
-									//newQuality2 = lines2[3].substring(0, enzymeEnd2) + lines2[3].substring(barcodeEnd2);
 									newSequence2 = lines2[1].substring(barcodeEnd2);
 									newQuality2 = lines2[3].substring(barcodeEnd2);
 								}else{
@@ -840,6 +775,61 @@ public class FastQParseMain {
 								newSequence2 = lines2[1];
 								newQuality2 = lines2[3];
 							}
+						}
+						
+						String[] temp;
+						String[] qualityTrimmed;
+						
+						//trim N
+						temp = UtilMethods.trimN(newSequence1, newQuality1, trimNPercent);
+						newSequence1 = temp[0];
+						newQuality1 = temp[1];
+						
+						//quality trim
+						if(trimAlgorithm){
+							temp = UtilMethods.qualityTrim2(newSequence1, newQuality1, qualityTrimQScore1, true, qualityTrimLength);
+							qualityTrimmed = UtilMethods.qualityTrim2(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
+						}else{
+							temp = UtilMethods.qualityTrim1(newSequence1, newQuality1, qualityTrimQScore1, true, qualityTrimLength);
+							qualityTrimmed = UtilMethods.qualityTrim1(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
+						}
+						if(newSequence1.length() != qualityTrimmed[0].length()){
+							DNACounts[barcodeIndex][4]++;
+							totalQualityTrimmed++;
+						}
+						//remove adapters
+						String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMaxA, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
+						if(qualityTrimmed[0].length() != removedAdapters[0].length()){
+							DNACounts[barcodeIndex][3]++;
+							totalRemovedAdapters++;
+						}
+						newSequence1 = removedAdapters[0];
+						newQuality1 = removedAdapters[1];
+						
+						//do the same for reversed reads
+						if(inputFile2 != null){
+							temp = UtilMethods.trimN(newSequence2, newQuality2, trimNPercent);
+							newSequence2 = temp[0];
+							newQuality2 = temp[1];
+							
+							if(trimAlgorithm){
+								temp = UtilMethods.qualityTrim2(newSequence2, newQuality2, qualityTrimQScore1, true, qualityTrimLength);
+								qualityTrimmed = UtilMethods.qualityTrim2(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
+							}else{
+								temp = UtilMethods.qualityTrim1(newSequence2, newQuality2, qualityTrimQScore1, true, qualityTrimLength);
+								qualityTrimmed = UtilMethods.qualityTrim1(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
+							}
+							if(newSequence2.length() != qualityTrimmed[0].length()){
+								DNACounts[barcodeIndex][4]++;
+								totalQualityTrimmed++;
+							}
+							removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersR, editMaxA, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
+							if(qualityTrimmed[0].length() != removedAdapters[0].length()){
+								DNACounts[barcodeIndex][3]++;
+								totalRemovedAdapters++;
+							}
+							newSequence2 = removedAdapters[0];
+							newQuality2 = removedAdapters[1];
 						}
 						
 						//merge paired-end reads
