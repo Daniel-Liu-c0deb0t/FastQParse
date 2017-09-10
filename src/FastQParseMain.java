@@ -692,12 +692,14 @@ public class FastQParseMain {
 											barcodeIndex = i;
 											barcodeEnd = matches.get(j).a;
 											enzymeEnd = matches.get(j).a + /*randUMILength + */enzymeMatches.get(enzymeMatches.size() - 1).a;
-											if(checkReversedReads){
-												barcodeEnd2 = tempBarcodeEnd2;
-												enzymeEnd2 = tempEnzymeEnd2;
-											}else{
-												barcodeEnd2 = Math.max(0, Math.min(lines2[1].length(), barcodeEnd/* - randUMILength*/));
-												enzymeEnd2 = Math.max(0, Math.min(lines2[1].length(), enzymeEnd/* - randUMILength*/));
+											if(inputFile2 != null){
+												if(checkReversedReads){
+													barcodeEnd2 = tempBarcodeEnd2;
+													enzymeEnd2 = tempEnzymeEnd2;
+												}else{
+													barcodeEnd2 = Math.max(0, Math.min(lines2[1].length(), barcodeEnd/* - randUMILength*/));
+													enzymeEnd2 = Math.max(0, Math.min(lines2[1].length(), enzymeEnd/* - randUMILength*/));
+												}
 											}
 											minEdit = matches.get(j).b;
 											break;
@@ -719,11 +721,11 @@ public class FastQParseMain {
 						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines3[1].substring(0, Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndels ? editMaxB : 0))), sampleDNAF.get(i), editMaxB, 0, allowIndels, true, minOverlapB, wildcard);
 						if(!matches.isEmpty()){
 							ArrayList<Pair<Integer>> rMatches = null;
-							if(inputFile2 != null){
+							if(inputFile2 != null && checkReversedReads){
 								rMatches = UtilMethods.searchWithN(lines4[1].substring(randUMILength, Math.min(lines4[1].length(), randUMILength + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? editMaxB : 0))),
 										hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, 0, allowIndels, true, Integer.MAX_VALUE, wildcard);
 							}
-							if((inputFile2 == null || !rMatches.isEmpty()) && matches.get(matches.size() - 1).b <= minEdit && (matches.get(matches.size() - 1).b < minEdit || matches.get(matches.size() - 1).a > barcodeEnd)){
+							if((inputFile2 == null || !checkReversedReads || !rMatches.isEmpty()) && matches.get(matches.size() - 1).b <= minEdit && (matches.get(matches.size() - 1).b < minEdit || matches.get(matches.size() - 1).a > barcodeEnd)){
 								barcodeIndex = i;
 								barcodeEnd = matches.get(matches.size() - 1).a;
 								minEdit = matches.get(matches.size() - 1).b;
