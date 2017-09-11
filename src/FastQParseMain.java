@@ -1606,7 +1606,7 @@ public class FastQParseMain {
 				lines[1] = removedAdapters[0];
 				lines[3] = removedAdapters[1];
 				
-				if((!removeUntrimmedReads || trimmedQuality == 1) && (!removeUntrimmedReads || removedAdapter == 1)){
+				if((!removeUntrimmedReads || trimmedQuality == 1) && (!removeNoAdapterReads || removedAdapter == 1)){
 					totalQualityTrimmed += trimmedQuality;
 					totalRemovedAdapters += removedAdapter;
 					
