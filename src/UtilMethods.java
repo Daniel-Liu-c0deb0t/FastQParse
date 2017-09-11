@@ -220,7 +220,7 @@ public class UtilMethods {
 				curr[0] = i;
 				for(int j = 1; j <= a.length(); j++){
 					if(Character.toUpperCase(b.charAt(i - 1)) == Character.toUpperCase(a.charAt(j - 1)) ||
-							Character.toUpperCase(b.charAt(i - 1)) == '-' || Character.toUpperCase(a.charAt(j - 1)) == '-' ||
+							b.charAt(i - 1) == '-' || a.charAt(j - 1) == '-' ||
 							(wildcard && (Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'))){
 						curr[j] = i == 1 ? (j - 1) : prev[j - 1]; //if bp equals or they equal N
 					}else{ //insertion, deletion, and substitution
@@ -239,7 +239,7 @@ public class UtilMethods {
 			int wrong = Math.max(a.length(), b.length()) - minLen;
 			
 			for(int i = 0; i < minLen; i++){
-				if(Character.toUpperCase(a.charAt(i)) == '-' || Character.toUpperCase(b.charAt(i)) == '-')
+				if(a.charAt(i) == '-' || b.charAt(i) == '-')
 					continue;
 				if(wildcard && (Character.toUpperCase(a.charAt(i)) == 'N' || Character.toUpperCase(b.charAt(i)) == 'N'))
 					continue;
@@ -262,7 +262,8 @@ public class UtilMethods {
 		
 		if(minOverlap < b.length()){
 			a = makeStr('-', b.length() - minOverlap) + a;
-			offset += b.length() - minOverlap;
+			if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
+				offset += b.length() - minOverlap;
 		}
 		
 		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
@@ -275,7 +276,7 @@ public class UtilMethods {
 				curr[0] = i;
 				for(int j = 1; j <= a.length(); j++){
 					if(Character.toUpperCase(b.charAt(i - 1)) == Character.toUpperCase(a.charAt(j - 1)) ||
-							Character.toUpperCase(b.charAt(i - 1)) == '-' || Character.toUpperCase(a.charAt(j - 1)) == '-' ||
+							b.charAt(i - 1) == '-' || a.charAt(j - 1) == '-' ||
 							(wildcard && (Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'))){
 						curr[j] = i == 1 ? Math.max(0, j - 1 - offset) : prev[j - 1];
 					}else{
@@ -552,11 +553,11 @@ public class UtilMethods {
 				}
 				if(!matches.isEmpty()){
 					if(a.isStart){
-						s = s.substring(matches.get(0).a);
-						q = q.substring(matches.get(0).a);
+						s = s.substring(matches.get(matches.size() / 2).a);
+						q = q.substring(matches.get(matches.size() / 2).a);
 					}else{
-						s = s.substring(0, s.length() - matches.get(0).a); //reverse the index to get the correct index
-						q = q.substring(0, q.length() - matches.get(0).a);
+						s = s.substring(0, s.length() - matches.get(matches.size() / 2).a); //reverse the index to get the correct index
+						q = q.substring(0, q.length() - matches.get(matches.size() / 2).a);
 					}
 				}
 			}
