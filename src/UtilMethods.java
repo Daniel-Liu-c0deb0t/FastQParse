@@ -196,7 +196,7 @@ public class UtilMethods {
 	
 	//fuzzy match where N can stand for any character
 	public static boolean matchWithN(String a, String b, double max, boolean indel, boolean wildcard){
-		return distWithN(a, b, indel, wildcard) <= (max < 0.0 ? (int)(-max * b.length()) : (int)max);
+		return distWithN(a, b, indel, wildcard) <= (max < 0.0 ? (-max * b.length()) : max);
 	}
 	
 	//distance between two strings
@@ -289,7 +289,7 @@ public class UtilMethods {
 							length = index;
 						else
 							length = b.length();
-						if(curr[j - 1] <= (max < 0.0 ? (int)(-max * length) : (int)max)){ //if not searching for best, then any match < threshold works
+						if(curr[j - 1] <= (max < 0.0 ? (-max * length) : max)){ //if not searching for best, then any match < threshold works
 							if(bestOnly)
 								min = Math.min(min, curr[j - 1]);
 							else
@@ -306,7 +306,7 @@ public class UtilMethods {
 						length = index;
 					else
 						length = b.length();
-					if(curr[a.length()] <= (max < 0.0 ? (int)(-max * length) : (int)max)){
+					if(curr[a.length()] <= (max < 0.0 ? (-max * length) : max)){
 						if(bestOnly)
 							min = Math.min(min, curr[a.length()]);
 						else
@@ -339,7 +339,7 @@ public class UtilMethods {
 					length = index;
 				else
 					length = b.length();
-				if(dist <= (max < 0.0 ? (int)(-max * length) : (int)max)){
+				if(dist <= (max < 0.0 ? (-max * length) : max)){
 					if(bestOnly)
 						min = Math.min(min, dist);
 					else
@@ -455,7 +455,7 @@ public class UtilMethods {
 			for(int i = 0; i < s1.length(); i++){
 				error = distWithN(s1.substring(i, Math.min(s1.length(), i + s2.length())), s2.substring(0, Math.min(s2.length(), s1.length() - i)), false, wildcard);
 				nonError = Math.min(s2.length(), s1.length() - i) - error;
-				if(error <= (editMax < 0.0 ? (int)(-editMax * Math.min(s2.length(), s1.length() - i)) : (int)editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
+				if(error <= (editMax < 0.0 ? (-editMax * Math.min(s2.length(), s1.length() - i)) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 					start = i;
 					maxNonError = nonError;
 					minError = error;
@@ -519,7 +519,7 @@ public class UtilMethods {
 						if(a.isStart && j <= a.str.length()){
 							error = distWithN(s.substring(0, j), a.str.substring(a.str.length() - j), indel, wildcard);
 							nonError = j - error;
-							if(error <= (editMax < 0.0 ? (int)(-editMax * j) : (int)editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
+							if(error <= (editMax < 0.0 ? (-editMax * j) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 								bestIndex = j;
 								maxNonError = nonError;
 								minError = error;
@@ -527,7 +527,7 @@ public class UtilMethods {
 						}else if(j <= s.length()){
 							error = distWithN(s.substring(j - a.str.length(), j), a.str, indel, wildcard);
 							nonError = a.str.length() - error;
-							if(error <= (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
+							if(error <= (editMax < 0.0 ? (-editMax * a.str.length()) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 								bestIndex = j;
 								maxNonError = nonError;
 								minError = error;
@@ -535,7 +535,7 @@ public class UtilMethods {
 						}else if(!a.isStart){
 							error = distWithN(s.substring(j - a.str.length()), a.str.substring(0, a.str.length() - j + s.length()), indel, wildcard);
 							nonError = a.str.length() - j + s.length() - error;
-							if(error <= (editMax < 0.0 ? (int)(-editMax * (a.str.length() - j + s.length())) : (int)editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
+							if(error <= (editMax < 0.0 ? (-editMax * (a.str.length() - j + s.length())) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
 								bestIndex = j;
 								maxNonError = nonError;
 								minError = error;
