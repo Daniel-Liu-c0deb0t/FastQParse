@@ -51,9 +51,9 @@ public class FastQParseMain {
 	private static boolean saveTemp = false; //save to temp file or not
 	private static boolean removeBarRand = true; //remove barcode and random from beginning of DNA (removes quality too)
 	private static boolean removeEnzyme = true; //remove enzyme from beginning of DNA (removes quality too)
-	private static int editMaxB = 1; //how many edits to allow (0 is exact match) for barcodes
-	private static int editMaxA = 1; //how many edits to allow (0 is exact match) for adapters
-	private static int editMaxM = 1; //how many edits to allow (0 is exact match) for merging paired-ends
+	private static double editMaxB = 1.0; //how many edits to allow (0 is exact match) for barcodes
+	private static double editMaxA = 1.0; //how many edits to allow (0 is exact match) for adapters
+	private static double editMaxM = 1.0; //how many edits to allow (0 is exact match) for merging paired-ends
 	private static boolean saveDup = false; //save duplicates in separate files
 	private static long printProcessedInterval = 80000000L; //interval to print the number of DNA processed while running
 	private static long printDuplicateInterval = 5000000L; //interval to print number of duplicates removed
@@ -174,9 +174,18 @@ public class FastQParseMain {
 			logWriter.println("Save Temporary Files: " + saveTemp);
 			logWriter.println("Remove Barcode and Random: " + removeBarRand);
 			logWriter.println("Remove Enzyme: " + removeEnzyme);
-			logWriter.println("Max Edits to Count as Match For Barcodes/Enzymes: " + editMaxB);
-			logWriter.println("Max Edits to Count as Match For Adapters: " + editMaxA);
-			logWriter.println("Max Edits to Count as Match For Merging Paired-Ends: " + editMaxM);
+			if(editMaxB < 0.0)
+				logWriter.println("Edit Percentage to Count as Match For Barcodes/Enzymes: " + -editMaxB);
+			else
+				logWriter.println("Max Edits to Count as Match For Barcodes/Enzymes: " + editMaxB);
+			if(editMaxA < 0.0)
+				logWriter.println("Edit Percentage to Count as Match For Adapters: " + -editMaxA);
+			else
+				logWriter.println("Max Edits to Count as Match For Adapters: " + editMaxA);
+			if(editMaxM < 0.0)
+				logWriter.println("Edit Percentage to Count as Match For Merging Paired-Ends: " + -editMaxM);
+			else
+				logWriter.println("Max Edits to Count as Match For Merging Paired-Ends: " + editMaxM);
 			logWriter.println("Allow Insertions and Deletions: " + allowIndels);
 			logWriter.println("Save Duplicates in Separate Files: " + saveDup);
 			logWriter.println("Interval to Print Processed Reads: " + DECIMAL_FORMAT.format(printProcessedInterval));
@@ -424,7 +433,10 @@ public class FastQParseMain {
 			logWriter.println("Output Directory: " + outputDir);
 			logWriter.println("Is Input GZIP Format: " + inputGZIP);
 			logWriter.println("Is Output GZIP Format: " + outputGZIP);
-			logWriter.println("Max Edits to Count as Match For Merging Paired-Ends: " + editMaxM);
+			if(editMaxM < 0.0)
+				logWriter.println("Edit Percentage to Count as Match For Merging Paired-Ends: " + -editMaxM);
+			else
+				logWriter.println("Max Edits to Count as Match For Merging Paired-Ends: " + editMaxM);
 			logWriter.println("Merge Algorithm: " + (mergeAlgorithm ? "2" : "1"));
 			logWriter.println("Interval to Print Processed Reads: " + DECIMAL_FORMAT.format(printProcessedInterval));
 			logWriter.println("Interval to Print Duplicate Reads: " + DECIMAL_FORMAT.format(printDuplicateInterval));
@@ -456,7 +468,10 @@ public class FastQParseMain {
 			logWriter.println("Output Directory: " + outputDir);
 			logWriter.println("Is Input GZIP Format: " + inputGZIP);
 			logWriter.println("Is Output GZIP Format: " + outputGZIP);
-			logWriter.println("Max Edits to Count as Match For Adapters: " + editMaxA);
+			if(editMaxA < 0.0)
+				logWriter.println("Edit Percentage to Count as Match For Adapters: " + -editMaxA);
+			else
+				logWriter.println("Max Edits to Count as Match For Adapters: " + editMaxA);
 			logWriter.println("Allow Insertions and Deletions: " + allowIndels);
 			logWriter.println("Interval to Print Processed Reads: " + DECIMAL_FORMAT.format(printProcessedInterval));
 			logWriter.println("Interval to Print Duplicate Reads: " + DECIMAL_FORMAT.format(printDuplicateInterval));
@@ -627,20 +642,20 @@ public class FastQParseMain {
 				int barcodeMatchCount = 0;
 				if(indexFile == null){ //check for enzyme and barcode in forwards reads
 					for(int i = 0; i < sampleDNAF.size(); i++){
-						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines1[1].substring(0, Math.min(lines1[1].length(), maxOffset + sampleDNAF.get(i).length() + (allowIndels ? editMaxB : 0))), sampleDNAF.get(i), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
+						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines1[1].substring(0, Math.min(lines1[1].length(), maxOffset + sampleDNAF.get(i).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0))), sampleDNAF.get(i), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
 						boolean isMatch = false;
 						for(int j = 0; j < matches.size(); j++){
 							for(int k = 0; k < constEnzymesF.size(); k++){
-								ArrayList<Pair<Integer>> enzymeMatches = UtilMethods.searchWithN(lines1[1].substring(matches.get(j).a/* + randUMILength*/, Math.min(lines1[1].length(), maxOffset + matches.get(j).a + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndels ? editMaxB : 0))), constEnzymesF.get(k), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
+								ArrayList<Pair<Integer>> enzymeMatches = UtilMethods.searchWithN(lines1[1].substring(matches.get(j).a/* + randUMILength*/, Math.min(lines1[1].length(), maxOffset + matches.get(j).a + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesF.get(k).length()) : (int)editMaxB) : 0))), constEnzymesF.get(k), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
 								if(!enzymeMatches.isEmpty()){
 									int tempBarcodeEnd2 = -1;
 									int tempEnzymeEnd2 = -1;
 									if(inputFile2 != null && checkReversedReads){
 										int minEdit2 = Integer.MAX_VALUE;
-										ArrayList<Pair<Integer>> rMatches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? editMaxB : 0))), hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
+										ArrayList<Pair<Integer>> rMatches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0))), hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
 										for(int ri = 0; ri < rMatches.size(); ri++){
 											for(int rj = 0; rj < constEnzymesR.size(); rj++){
-												ArrayList<Pair<Integer>> rEnzymeMatches = UtilMethods.searchWithN(lines2[1].substring(rMatches.get(ri).a/* + randUMILength*/, Math.min(lines2[1].length(), maxOffset + rMatches.get(ri).a + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndels ? editMaxB : 0))), constEnzymesR.get(rj), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
+												ArrayList<Pair<Integer>> rEnzymeMatches = UtilMethods.searchWithN(lines2[1].substring(rMatches.get(ri).a/* + randUMILength*/, Math.min(lines2[1].length(), maxOffset + rMatches.get(ri).a + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0))), constEnzymesR.get(rj), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
 												if(!rEnzymeMatches.isEmpty() && rMatches.get(ri).b <= minEdit2 && (rMatches.get(ri).b < minEdit2 || rMatches.get(ri).a > tempBarcodeEnd2)){
 													tempBarcodeEnd2 = rMatches.get(ri).a;
 													tempEnzymeEnd2 = rMatches.get(ri).a + /*randUMILength + */rEnzymeMatches.get(rEnzymeMatches.size() - 1).a;
@@ -683,11 +698,11 @@ public class FastQParseMain {
 					}
 				}else{ //check for barcode in index reads
 					for(int i = 0; i < sampleDNAF.size(); i++){
-						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines3[1].substring(0, Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndels ? editMaxB : 0))), sampleDNAF.get(i), editMaxB, 0, allowIndels, true, minOverlapB, wildcard);
+						ArrayList<Pair<Integer>> matches = UtilMethods.searchWithN(lines3[1].substring(0, Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0))), sampleDNAF.get(i), editMaxB, 0, allowIndels, true, minOverlapB, wildcard);
 						if(!matches.isEmpty()){
 							ArrayList<Pair<Integer>> rMatches = null;
 							if(inputFile2 != null && checkReversedReads){
-								rMatches = UtilMethods.searchWithN(lines4[1].substring(randUMILength, Math.min(lines4[1].length(), randUMILength + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? editMaxB : 0))),
+								rMatches = UtilMethods.searchWithN(lines4[1].substring(randUMILength, Math.min(lines4[1].length(), randUMILength + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0))),
 										hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, 0, allowIndels, true, Integer.MAX_VALUE, wildcard);
 							}
 							if((inputFile2 == null || !checkReversedReads || !rMatches.isEmpty()) && matches.get(matches.size() - 1).b <= minEdit && (matches.get(matches.size() - 1).b < minEdit || matches.get(matches.size() - 1).a > barcodeEnd)){
@@ -1696,11 +1711,17 @@ public class FastQParseMain {
 				}else if(args[i].equals("--keepenzyme")){
 					removeEnzyme = false;
 				}else if(args[i].equals("--maxedita")){
-					editMaxA = Integer.parseInt(args[++i]);
+					editMaxA = Double.parseDouble(args[++i]);
 				}else if(args[i].equals("--maxeditb")){
-					editMaxB = Integer.parseInt(args[++i]);
+					editMaxB = Double.parseDouble(args[++i]);
 				}else if(args[i].equals("--maxeditm")){
-					editMaxM = Integer.parseInt(args[++i]);
+					editMaxM = Double.parseDouble(args[++i]);
+				}else if(args[i].equals("--maxeditap")){
+					editMaxA = -Double.parseDouble(args[++i]);
+				}else if(args[i].equals("--maxeditbp")){
+					editMaxB = -Double.parseDouble(args[++i]);
+				}else if(args[i].equals("--maxeditmp")){
+					editMaxM = -Double.parseDouble(args[++i]);
 				}else if(args[i].equals("--savedup")){
 					saveDup = true;
 				}else if(args[i].equals("--printprocessed")){
@@ -1899,7 +1920,9 @@ public class FastQParseMain {
 				}else if(args[i].equals("--gzip") || args[i].equals("-gz")){
 					outputGZIP = true;
 				}else if(args[i].equals("--maxeditm")){
-					editMaxM = Integer.parseInt(args[++i]);
+					editMaxM = Double.parseDouble(args[++i]);
+				}else if(args[i].equals("--maxeditmp")){
+					editMaxM = -Double.parseDouble(args[++i]);
 				}else if(args[i].equals("--printprocessed")){
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--altmerge")){
@@ -1944,7 +1967,9 @@ public class FastQParseMain {
 				}else if(args[i].equals("--gzip") || args[i].equals("-gz")){
 					outputGZIP = true;
 				}else if(args[i].equals("--maxedita")){
-					editMaxA = Integer.parseInt(args[++i]);
+					editMaxA = Double.parseDouble(args[++i]);
+				}else if(args[i].equals("--maxeditap")){
+					editMaxA = -Double.parseDouble(args[++i]);
 				}else if(args[i].equals("--printprocessed")){
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--qfilter")){
