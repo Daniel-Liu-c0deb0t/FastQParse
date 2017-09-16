@@ -261,9 +261,9 @@ public class UtilMethods {
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
 		
 		if(minOverlap < b.length()){
-			a = makeStr('-', b.length() - minOverlap) + a;
-			if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
-				offset += b.length() - minOverlap;
+			a = makeStr('-', b.length()) + a;
+			if(Integer.MAX_VALUE - offset > b.length())
+				offset += b.length();
 		}
 		
 		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
@@ -292,14 +292,14 @@ public class UtilMethods {
 						}
 					}
 					if(i >= b.length()){
-						int index = j - 1 - (minOverlap < b.length() ? (b.length() - minOverlap) : 0);
+						int index = j - 1 - (minOverlap < b.length() ? b.length() : 0);
 						int length;
 						if(index < b.length())
 							length = index;
 						else
 							length = b.length();
 						length += curr[j - 1][0] - curr[j - 1][1];
-						if(sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max)){ //if not searching for best, then any match < threshold works
+						if(sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){ //if not searching for best, then any match < threshold works
 							if(bestOnly)
 								min = Math.min(min, sum(curr[j - 1]));
 							else
@@ -310,14 +310,14 @@ public class UtilMethods {
 					}
 				}
 				if(i >= b.length()){
-					int index = a.length() - (minOverlap < b.length() ? (b.length() - minOverlap) : 0);
+					int index = a.length() - (minOverlap < b.length() ? b.length() : 0);
 					int length;
 					if(index < b.length())
 						length = index;
 					else
 						length = b.length();
 					length += curr[a.length()][0] - curr[a.length()][1];
-					if(sum(curr[a.length()]) <= (max < 0.0 ? (-max * length) : max)){
+					if(sum(curr[a.length()]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){
 						if(bestOnly)
 							min = Math.min(min, sum(curr[a.length()]));
 						else
@@ -331,14 +331,16 @@ public class UtilMethods {
 			if(bestOnly && min < Integer.MAX_VALUE){ //if only find best, then return only the matches with shortest distance
 				for(int i = 0; i <= a.length(); i++){
 					if(sum(curr[i]) == min){
-						int index = i - (minOverlap < b.length() ? (b.length() - minOverlap) : 0);
+						int index = i - (minOverlap < b.length() ? b.length() : 0);
 						int length;
 						if(index < b.length())
 							length = index;
 						else
 							length = b.length();
 						length += curr[i][0] - curr[i][1];
-						result.add(new Match(index, min, length));
+						if(sum(curr[i]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){
+							result.add(new Match(index, min, length));
+						}
 					}
 				}
 			}
