@@ -42,7 +42,8 @@ public class FastQParseMain {
 	private static boolean removeFirstDup = false; //remove duplicates that are not the first
 	private static boolean removeBestDup = false; //remove duplicates that are not the best
 	private static boolean replaceOriginal = false; //replace original file
-	private static int maxOffset = 0; //tries offsets from 0 to maxOffset when matching barcode/enzyme
+	private static int maxOffsetB = 0; //tries offsets from 0 to maxOffset when matching barcode/enzyme
+	private static int maxOffsetA = 0; //tries offsets from 0 to maxOffset when matching adapter
 	private static double removeDNAWithNPercent = 2.0; //if the percentage of DNA that is N is greater than this value then it will be undetermined
 	private static double qualityFilter = 0.0; //quality filter threshold
 	private static boolean filterAlgorithm = false; //false = average, true = expected error
@@ -158,7 +159,8 @@ public class FastQParseMain {
 			}
 			logWriter.println("Output Directory: " + outputDir);
 			logWriter.println("Length of Random UMI: " + randUMILength);
-			logWriter.println("Maximum Right Offset: " + maxOffset);
+			logWriter.println("Maximum Right Offset For Barcodes/Enzymes: " + maxOffsetB);
+			logWriter.println("Maximum Right Offset For Adapters: " + maxOffsetA);
 			if(removeDNAWithNPercent >= 0 && removeDNAWithNPercent <= 1.0)
 				logWriter.println("Remove Reads With % of N Greater Than: " + removeDNAWithNPercent);
 			else if(removeDNAWithNPercent < 0)
@@ -487,6 +489,7 @@ public class FastQParseMain {
 			logWriter.println("Quality Filter Algorithm: " + (filterAlgorithm ? "2" : "1"));
 			String adaptersFString = adaptersF.toString();
 			logWriter.println("Read Adapters: " + adaptersFString.substring(1, adaptersFString.length() - 1));
+			logWriter.println("Maximum Right Offset For Adapters: " + maxOffsetA);
 			logWriter.println("Minimum Adapter Overlap: " + minOverlapA);
 			logWriter.println("Remove Adapter Algorithm: " + (adapterAlgorithm ? "2" : "1"));
 			logWriter.println("Quality Trim Algorithm: " + (trimAlgorithm ? "2" : "1"));
@@ -641,20 +644,20 @@ public class FastQParseMain {
 				int barcodeMatchCount = 0;
 				if(indexFile == null){ //check for enzyme and barcode in forwards reads
 					for(int i = 0; i < sampleDNAF.size(); i++){
-						ArrayList<Match> matches = UtilMethods.searchWithN(lines1[1].substring(0, Math.min(lines1[1].length(), maxOffset + sampleDNAF.get(i).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0))), sampleDNAF.get(i), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
+						ArrayList<Match> matches = UtilMethods.searchWithN(lines1[1].substring(0, Math.min(lines1[1].length(), maxOffsetB + sampleDNAF.get(i).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0))), sampleDNAF.get(i), editMaxB, maxOffsetB, allowIndels, false, minOverlapB, wildcard);
 						boolean isMatch = false;
 						for(int j = 0; j < matches.size(); j++){
 							for(int k = 0; k < constEnzymesF.size(); k++){
-								ArrayList<Match> enzymeMatches = UtilMethods.searchWithN(lines1[1].substring(matches.get(j).end/* + randUMILength*/, Math.min(lines1[1].length(), maxOffset + matches.get(j).end + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesF.get(k).length()) : (int)editMaxB) : 0))), constEnzymesF.get(k), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
+								ArrayList<Match> enzymeMatches = UtilMethods.searchWithN(lines1[1].substring(matches.get(j).end/* + randUMILength*/, Math.min(lines1[1].length(), maxOffsetB + matches.get(j).end + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesF.get(k).length()) : (int)editMaxB) : 0))), constEnzymesF.get(k), editMaxB, maxOffsetB, allowIndels, true, Integer.MAX_VALUE, wildcard);
 								if(!enzymeMatches.isEmpty()){
 									int tempBarcodeEnd2 = -1;
 									int tempEnzymeEnd2 = -1;
 									if(inputFile2 != null && checkReversedReads){
 										int minEdit2 = Integer.MAX_VALUE;
-										ArrayList<Match> rMatches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffset + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0))), hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, maxOffset, allowIndels, false, minOverlapB, wildcard);
+										ArrayList<Match> rMatches = UtilMethods.searchWithN(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffsetB + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0))), hasReversedBarcode ? sampleDNAR.get(i) : UtilMethods.complement(sampleDNAF.get(i)), editMaxB, maxOffsetB, allowIndels, false, minOverlapB, wildcard);
 										for(int ri = 0; ri < rMatches.size(); ri++){
 											for(int rj = 0; rj < constEnzymesR.size(); rj++){
-												ArrayList<Match> rEnzymeMatches = UtilMethods.searchWithN(lines2[1].substring(rMatches.get(ri).end/* + randUMILength*/, Math.min(lines2[1].length(), maxOffset + rMatches.get(ri).end + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0))), constEnzymesR.get(rj), editMaxB, maxOffset, allowIndels, true, Integer.MAX_VALUE, wildcard);
+												ArrayList<Match> rEnzymeMatches = UtilMethods.searchWithN(lines2[1].substring(rMatches.get(ri).end/* + randUMILength*/, Math.min(lines2[1].length(), maxOffsetB + rMatches.get(ri).end + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndels ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0))), constEnzymesR.get(rj), editMaxB, maxOffsetB, allowIndels, true, Integer.MAX_VALUE, wildcard);
 												if(!rEnzymeMatches.isEmpty() && rMatches.get(ri).edits <= minEdit2 && (rMatches.get(ri).edits < minEdit2 || rMatches.get(ri).end > tempBarcodeEnd2)){
 													tempBarcodeEnd2 = rMatches.get(ri).end;
 													tempEnzymeEnd2 = rMatches.get(ri).end + /*randUMILength + */rEnzymeMatches.get(rEnzymeMatches.size() - 1).end;
@@ -797,7 +800,7 @@ public class FastQParseMain {
 							trimmedQuality++;
 						}
 						//remove adapters
-						String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMaxA, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
+						String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMaxA, minOverlapA, maxOffsetA, allowIndels, adapterAlgorithm, wildcard);
 						if(qualityTrimmed[0].length() != removedAdapters[0].length()){
 							removedAdapter++;
 						}
@@ -820,7 +823,7 @@ public class FastQParseMain {
 							if(newSequence2.length() != qualityTrimmed[0].length()){
 								trimmedQuality++;
 							}
-							removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersR, editMaxA, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
+							removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersR, editMaxA, minOverlapA, maxOffsetA, allowIndels, adapterAlgorithm, wildcard);
 							if(qualityTrimmed[0].length() != removedAdapters[0].length()){
 								removedAdapter++;
 							}
@@ -1590,8 +1593,7 @@ public class FastQParseMain {
 			}else{
 				qualityAcceptable = UtilMethods.toQScore(lines[3], 0) >= qualityFilter;
 			}
-			if(lines[1].length() >= minLength && lines[1].length() <= maxLength && qualityAcceptable &&
-					(removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(lines[1]) <= removeDNAWithNPercent) || (removeDNAWithNPercent < 0.0 && UtilMethods.countN(lines[1]) <= 0))){
+			if(qualityAcceptable && (removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(lines[1]) <= removeDNAWithNPercent) || (removeDNAWithNPercent < 0.0 && UtilMethods.countN(lines[1]) <= 0))){
 				String[] temp;
 				String[] qualityTrimmed;
 				
@@ -1615,14 +1617,15 @@ public class FastQParseMain {
 					trimmedQuality++;
 				}
 				//remove adapters
-				String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMaxA, minOverlapA, allowIndels, adapterAlgorithm, wildcard);
+				String[] removedAdapters = UtilMethods.removeAdapters(qualityTrimmed[0], qualityTrimmed[1], adaptersF, editMaxA, minOverlapA, maxOffsetA, allowIndels, adapterAlgorithm, wildcard);
 				if(qualityTrimmed[0].length() != removedAdapters[0].length()){
 					removedAdapter++;
 				}
 				lines[1] = removedAdapters[0];
 				lines[3] = removedAdapters[1];
 				
-				if((!removeUntrimmedReads || trimmedQuality == 1) && (!removeNoAdapterReads || removedAdapter == 1)){
+				if((!removeUntrimmedReads || trimmedQuality == 1) && (!removeNoAdapterReads || removedAdapter == 1) &&
+						lines[1].length() >= minLength && lines[1].length() <= maxLength){
 					totalQualityTrimmed += trimmedQuality;
 					totalRemovedAdapters += removedAdapter;
 					
@@ -1679,8 +1682,10 @@ public class FastQParseMain {
 					}else{
 						removeDNAWithNPercent = -1.0;
 					}
-				}else if(args[i].equals("--maxoffset")){
-					maxOffset = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("--maxoffsetb")){
+					maxOffsetB = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("--maxoffseta")){
+					maxOffsetA = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--qfilter")){
 					qualityFilter = Double.parseDouble(args[++i]);
 				}else if(args[i].equals("--reads") || args[i].equals("-r")){
@@ -1975,6 +1980,8 @@ public class FastQParseMain {
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--qfilter")){
 					qualityFilter = Double.parseDouble(args[++i]);
+				}else if(args[i].equals("--maxoffseta")){
+					maxOffsetA = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--overwrite") || args[i].equals("-O")){
 					replaceOriginal = true;
 				}else if(args[i].equals("--minlen")){

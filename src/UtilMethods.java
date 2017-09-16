@@ -529,7 +529,7 @@ public class UtilMethods {
 	}
 	
 	//remove adapters from sequence and quality strings
-	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, double editMax, int minOverlap, boolean indel, boolean mode, boolean wildcard){
+	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, double editMax, int minOverlap, int maxOffset, boolean indel, boolean mode, boolean wildcard){
 		if(mode){ //allow the adapter to hang off each end of the read (deprecated)
 			for(int i = 0; i < adapters.size(); i++){
 				Adapter a = adapters.get(i);
@@ -598,9 +598,11 @@ public class UtilMethods {
 				
 				ArrayList<Match> matches;
 				if(a.anchored){
-					matches = searchWithN(a.isStart ? s.substring(0, a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax)) : reverse(s).substring(0, a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax)), a.isStart ? a.str : reverse(a.str), editMax, Integer.MAX_VALUE, indel, true, Integer.MAX_VALUE, wildcard);
+					matches = searchWithN(a.isStart ? s.substring(0, Math.min(a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())) :
+						reverse(s).substring(0, Math.min(a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())), a.isStart ? a.str : reverse(a.str), editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
 				}else{ //because searchWithN can only find ending locations, the 3' adapters need to be reversed along with the read
-					matches = searchWithN(a.isStart ? s : reverse(s), a.isStart ? a.str : reverse(a.str), editMax, Integer.MAX_VALUE, indel, true, minOverlap, wildcard);
+					matches = searchWithN(a.isStart ? s.substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())) :
+						reverse(s).substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())), a.isStart ? a.str : reverse(a.str), editMax, maxOffset, indel, true, minOverlap, wildcard);
 				}
 				if(!matches.isEmpty()){
 					if(a.isStart){
