@@ -844,7 +844,7 @@ public class FastQParseMain {
 						
 						//check if reads are trimmed and if length is too long or short
 						if((!removeUntrimmedReads || trimmedQuality == (inputFile2 == null ? 1 : 2)) && (!removeNoAdapterReads || removedAdapter == (inputFile2 == null ? 1 : 2)) && (!removeNoMergeReads || mergedReads) &&
-								minLength <= newSequence1.length() && newSequence1.length() <= maxLength && (inputFile2 == null || (minLength <= newSequence2.length() && newSequence2.length() <= maxLength))){
+								minLength <= newSequence1.length() && newSequence1.length() <= maxLength && (inputFile2 == null || mergePairedEnds || (minLength <= newSequence2.length() && newSequence2.length() <= maxLength))){
 							if(writers1[barcodeIndex] == null){
 								if(!outputGZIP && !removeFirstDup && !removeBestDup){
 									writers1[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq"), BUFFER_SIZE);
