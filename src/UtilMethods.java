@@ -603,8 +603,24 @@ public class UtilMethods {
 					matches = searchWithN(a.isStart ? s.substring(0, Math.min(a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())) :
 						reverse(s).substring(0, Math.min(a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())), a.isStart ? a.str : reverse(a.str), editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
 				}else{ //because searchWithN can only find ending locations, the 3' adapters need to be reversed along with the read
-					matches = searchWithN(a.isStart ? s.substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())) :
-						reverse(s).substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())), a.isStart ? a.str : reverse(a.str), editMax, maxOffset, indel, true, minOverlap, wildcard);
+					ArrayList<Match> tempMatches = searchWithN(a.isStart ? s.substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())) :
+						reverse(s).substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())), a.isStart ? a.str : reverse(a.str), editMax, maxOffset, indel, false, minOverlap, wildcard);
+					matches = new ArrayList<Match>();
+					
+					int minEdit = Integer.MAX_VALUE;
+					int maxLength = 0;
+					int matchIndex = -1;
+					for(int j = 0; j < tempMatches.size(); j++){
+						Match m = tempMatches.get(j);
+						if(m.correctLength >= maxLength && (m.correctLength > maxLength || m.edits < minEdit)){
+							matchIndex = j;
+							maxLength = m.correctLength;
+							minEdit = m.edits;
+						}
+					}
+					if(matchIndex != -1){
+						matches.add(tempMatches.get(matchIndex));
+					}
 				}
 				if(!matches.isEmpty()){
 					if(a.isStart){
