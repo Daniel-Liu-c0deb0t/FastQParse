@@ -294,10 +294,11 @@ public class UtilMethods {
 					if(i >= b.length()){
 						int index = j - 1 - (minOverlap < b.length() ? b.length() : 0);
 						int length;
-						if(index < b.length())
+						if(index < b.length()){
 							length = index;
-						else
+						}else{
 							length = b.length();
+						}
 						length += curr[j - 1][0] - curr[j - 1][1];
 						if(sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){ //if not searching for best, then any match < threshold works
 							if(bestOnly)
@@ -312,10 +313,11 @@ public class UtilMethods {
 				if(i >= b.length()){
 					int index = a.length() - (minOverlap < b.length() ? b.length() : 0);
 					int length;
-					if(index < b.length())
+					if(index < b.length()){
 						length = index;
-					else
+					}else{
 						length = b.length();
+					}
 					length += curr[a.length()][0] - curr[a.length()][1];
 					if(sum(curr[a.length()]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){
 						if(bestOnly)
@@ -333,10 +335,11 @@ public class UtilMethods {
 					if(sum(curr[i]) == min){
 						int index = i - (minOverlap < b.length() ? b.length() : 0);
 						int length;
-						if(index < b.length())
+						if(index < b.length()){
 							length = index;
-						else
+						}else{
 							length = b.length();
+						}
 						length += curr[i][0] - curr[i][1];
 						if(sum(curr[i]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){
 							result.add(new Match(index, min, length));
@@ -624,11 +627,11 @@ public class UtilMethods {
 				}
 				if(!matches.isEmpty()){
 					if(a.isStart){
-						s = s.substring(matches.get(matches.size() / 2).end);
-						q = q.substring(matches.get(matches.size() / 2).end);
+						s = s.substring(matches.get(matches.size() - 1).end);
+						q = q.substring(matches.get(matches.size() - 1).end);
 					}else{
-						s = s.substring(0, s.length() - matches.get(matches.size() / 2).end); //reverse the index to get the correct index
-						q = q.substring(0, q.length() - matches.get(matches.size() / 2).end);
+						s = s.substring(0, s.length() - matches.get(matches.size() - 1).end); //reverse the index to get the correct index
+						q = q.substring(0, q.length() - matches.get(matches.size() - 1).end);
 					}
 				}
 			}
