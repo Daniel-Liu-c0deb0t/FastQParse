@@ -260,13 +260,14 @@ public class UtilMethods {
 		if(b.isEmpty())
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
 		
-		if(minOverlap < b.length()){
-			a = makeStr('-', b.length() - minOverlap) + a;
-			if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
-				offset += b.length() - minOverlap;
-		}
-		
 		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
+			int maxNonOverlap = Math.min(b.length() - minOverlap + (int)(max < 0.0 ? (-max * b.length()) : max), b.length());
+			if(minOverlap < b.length()){
+				a = makeStr('-', maxNonOverlap) + a;
+				if(Integer.MAX_VALUE - offset > maxNonOverlap)
+					offset += maxNonOverlap;
+			}
+			
 			int[][] curr = new int[a.length() + 1][3]; //{insertion, deletion, substitution}
 			int[][] prev = new int[a.length() + 1][3];
 			ArrayList<Match> result = new ArrayList<Match>();
@@ -292,7 +293,7 @@ public class UtilMethods {
 						}
 					}
 					if(i >= b.length()){
-						int index = j - 1 - (minOverlap < b.length() ? b.length() - minOverlap : 0);
+						int index = j - 1 - (minOverlap < b.length() ? maxNonOverlap : 0);
 						int length;
 						if(index < b.length()){
 							length = index;
@@ -311,7 +312,7 @@ public class UtilMethods {
 					}
 				}
 				if(i >= b.length()){
-					int index = a.length() - (minOverlap < b.length() ? b.length() - minOverlap : 0);
+					int index = a.length() - (minOverlap < b.length() ? maxNonOverlap : 0);
 					int length;
 					if(index < b.length()){
 						length = index;
@@ -333,7 +334,7 @@ public class UtilMethods {
 			if(bestOnly && min < Integer.MAX_VALUE){ //if only find best, then return only the matches with shortest distance
 				for(int i = 0; i <= a.length(); i++){
 					if(sum(curr[i]) == min){
-						int index = i - (minOverlap < b.length() ? b.length() - minOverlap : 0);
+						int index = i - (minOverlap < b.length() ? maxNonOverlap : 0);
 						int length;
 						if(index < b.length()){
 							length = index;
@@ -351,6 +352,12 @@ public class UtilMethods {
 		}else{ //very simple substitution only search
 			if(a.length() < b.length())
 				return new ArrayList<Match>();
+			
+			if(minOverlap < b.length()){
+				a = makeStr('-', b.length() - minOverlap) + a;
+				if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
+					offset += b.length() - minOverlap;
+			}
 			
 			ArrayList<Match> result = new ArrayList<Match>();
 			int min = Integer.MAX_VALUE;
