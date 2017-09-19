@@ -633,8 +633,8 @@ public class FastQParseMain {
 			}
 			
 			//check the percentage of N
-			if((removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(lines1[1]) <= removeDNAWithNPercent && (inputFile2 == null || UtilMethods.percentN(lines2[1]) <= removeDNAWithNPercent)) ||
-					(removeDNAWithNPercent < 0.0 && UtilMethods.countN(lines1[1]) <= 0 && (inputFile2 == null || UtilMethods.countN(lines2[1]) <= 0)))){
+			if(removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(lines1[1]) <= removeDNAWithNPercent && (inputFile2 == null || UtilMethods.percentN(lines2[1]) <= removeDNAWithNPercent)) ||
+					(removeDNAWithNPercent < 0.0 && UtilMethods.countN(lines1[1]) <= 0 && (inputFile2 == null || UtilMethods.countN(lines2[1]) <= 0))){
 				int barcodeIndex = -1;
 				int barcodeEnd = -1;
 				int enzymeEnd = -1;
