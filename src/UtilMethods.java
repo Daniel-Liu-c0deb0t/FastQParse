@@ -220,7 +220,7 @@ public class UtilMethods {
 				curr[0] = i;
 				for(int j = 1; j <= a.length(); j++){
 					if(Character.toUpperCase(b.charAt(i - 1)) == Character.toUpperCase(a.charAt(j - 1)) ||
-							b.charAt(i - 1) == '-' || a.charAt(j - 1) == '-' ||
+//							b.charAt(i - 1) == '-' || a.charAt(j - 1) == '-' ||
 							(wildcard && (Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'))){
 						curr[j] = i == 1 ? (j - 1) : prev[j - 1]; //if bp equals or they equal N
 					}else{ //insertion, deletion, and substitution
@@ -239,8 +239,8 @@ public class UtilMethods {
 			int wrong = Math.max(a.length(), b.length()) - minLen;
 			
 			for(int i = 0; i < minLen; i++){
-				if(a.charAt(i) == '-' || b.charAt(i) == '-')
-					continue;
+//				if(a.charAt(i) == '-' || b.charAt(i) == '-')
+//					continue;
 				if(wildcard && (Character.toUpperCase(a.charAt(i)) == 'N' || Character.toUpperCase(b.charAt(i)) == 'N'))
 					continue;
 				if(Character.toUpperCase(a.charAt(i)) != Character.toUpperCase(b.charAt(i))){
@@ -261,23 +261,24 @@ public class UtilMethods {
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
 		
 		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
-			int maxNonOverlap = Math.min(b.length() - minOverlap + (int)(max < 0.0 ? (-max * b.length()) : max), b.length());
-			if(minOverlap < b.length()){
-				a = makeStr('-', maxNonOverlap) + a;
-				if(Integer.MAX_VALUE - offset > maxNonOverlap)
-					offset += maxNonOverlap;
-			}
+//			int maxNonOverlap = Math.min(b.length() - minOverlap + (int)(max < 0.0 ? (-max * b.length()) : max), b.length());
+//			if(minOverlap < b.length()){
+//				a = makeStr('-', maxNonOverlap) + a;
+//				if(Integer.MAX_VALUE - offset > maxNonOverlap)
+//					offset += maxNonOverlap;
+//			}
 			
 			int[][] curr = new int[a.length() + 1][3]; //{insertion, deletion, substitution}
 			int[][] prev = new int[a.length() + 1][3];
 			ArrayList<Match> result = new ArrayList<Match>();
 			int min = Integer.MAX_VALUE;
+			int end = a.length()/*Math.min((int)(max < 0.0 ? (-max * b.length()) : max) + 1, b.length())*/;
 			
 			for(int i = 1; i <= b.length(); i++){
-				curr[0] = new int[]{0, i, 0};
-				for(int j = 1; j <= a.length(); j++){
+				curr[0] = new int[]{0, Math.max(0, minOverlap < b.length() ? (i - b.length() + minOverlap) : i), 0};
+				for(int j = 1; j <= end; j++){
 					if(Character.toUpperCase(b.charAt(i - 1)) == Character.toUpperCase(a.charAt(j - 1)) ||
-							b.charAt(i - 1) == '-' || a.charAt(j - 1) == '-' ||
+//							b.charAt(i - 1) == '-' || a.charAt(j - 1) == '-' ||
 							(wildcard && (Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'))){
 						curr[j] = i == 1 ? new int[]{Math.max(0, j - 1 - offset), 0, 0} : copy(prev[j - 1]);
 					}else{
@@ -293,7 +294,7 @@ public class UtilMethods {
 						}
 					}
 					if(i >= b.length()){
-						int index = j - 1 - (minOverlap < b.length() ? maxNonOverlap : 0);
+						int index = j - 1/* - (minOverlap < b.length() ? maxNonOverlap : 0)*/;
 						int length;
 						if(index < b.length()){
 							length = index;
@@ -301,7 +302,7 @@ public class UtilMethods {
 							length = b.length();
 						}
 						length += curr[j - 1][0] - curr[j - 1][1];
-						if(sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){ //if not searching for best, then any match < threshold works
+						if(sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max)){ //if not searching for best, then any match < threshold works
 							if(!bestOnly || sum(curr[j - 1]) <= min){
 								result.add(new Match(index, sum(curr[j - 1]), length));
 								min = sum(curr[j - 1]);
@@ -312,7 +313,7 @@ public class UtilMethods {
 					}
 				}
 				if(i >= b.length()){
-					int index = a.length() - (minOverlap < b.length() ? maxNonOverlap : 0);
+					int index = a.length()/* - (minOverlap < b.length() ? maxNonOverlap : 0)*/;
 					int length;
 					if(index < b.length()){
 						length = index;
@@ -320,7 +321,7 @@ public class UtilMethods {
 						length = b.length();
 					}
 					length += curr[a.length()][0] - curr[a.length()][1];
-					if(sum(curr[a.length()]) <= (max < 0.0 ? (-max * length) : max) && length >= minOverlap){
+					if(sum(curr[a.length()]) <= (max < 0.0 ? (-max * length) : max)){
 						if(!bestOnly || sum(curr[a.length()]) <= min){
 							result.add(new Match(index, sum(curr[a.length()]), length));
 							min = sum(curr[a.length()]);
@@ -328,6 +329,13 @@ public class UtilMethods {
 					}
 				}else{
 					prev[a.length()] = copy(curr[a.length()]);
+				}
+				while(end >= 0 && sum(curr[end]) > (max < 0.0 ? (-max * b.length()) : max)){
+					end--;
+				}
+				if(end < a.length()){
+					end++;
+					prev[end] = new int[]{(int)(max < 0.0 ? (-max * b.length()) : max) + 1, 0, 0};
 				}
 			}
 			
@@ -347,18 +355,18 @@ public class UtilMethods {
 			if(a.length() < b.length())
 				return new ArrayList<Match>();
 			
-			if(minOverlap < b.length()){
-				a = makeStr('-', b.length() - minOverlap) + a;
-				if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
-					offset += b.length() - minOverlap;
-			}
+//			if(minOverlap < b.length()){
+//				a = makeStr('-', b.length() - minOverlap) + a;
+//				if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
+//					offset += b.length() - minOverlap;
+//			}
 			
 			ArrayList<Match> result = new ArrayList<Match>();
 			int min = Integer.MAX_VALUE;
 			
-			for(int i = 0; i <= a.length() - b.length(); i++){
-				int dist = distWithN(a.substring(i, i + b.length()), b, indel, wildcard);
-				int index = i + b.length() - (minOverlap < b.length() ? (b.length() - minOverlap) : 0);
+			for(int i = Math.min(minOverlap, b.length()); i <= a.length(); i++){
+				int dist = distWithN(a.substring(Math.max(0, i - b.length()), i), b.substring(i < b.length() ? (b.length() - i) : 0), indel, wildcard);
+				int index = i/* - (minOverlap < b.length() ? (b.length() - minOverlap) : 0)*/;
 				int length;
 				if(index < b.length())
 					length = index;
