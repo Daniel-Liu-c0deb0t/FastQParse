@@ -662,7 +662,7 @@ public class UtilMethods {
 			int count = 0;
 			double avg = 0.0;
 			int q1 = toQScore(q.charAt(i));
-			for(int j = Math.max(i - length, 0); j <= i + length && j < s.length(); j++){ //average nearby quality scores
+			for(int j = (i == Integer.MAX_VALUE ? 0 : Math.max(i - length, 0)); j < (i == Integer.MAX_VALUE ? s.length() : Math.min(i + length + 1, s.length())); j++){ //average nearby quality scores
 				int q2 = toQScore(q.charAt(j));
 				if(q2 <= q1){ //only average with nearby bp with worse quality
 					count++;
@@ -691,9 +691,9 @@ public class UtilMethods {
 			//sliding window quality trim
 			//the current count is previous count - the last element + the next element
 			if(trimLeft) //subtract last element
-				count -= (i - length) < 0 ? 0 : (toQScore(q.charAt(i - length)) - minQuality);
+				count -= ((i - length) < 0 || i == Integer.MAX_VALUE) ? 0 : (toQScore(q.charAt(i - length)) - minQuality);
 			else //subtract last element
-				count -= (i + length) >= s.length() ? 0 : (toQScore(q.charAt(i + length)) - minQuality);
+				count -= ((i + length) >= s.length() || i == Integer.MAX_VALUE) ? 0 : (toQScore(q.charAt(i + length)) - minQuality);
 			count += toQScore(q.charAt(i)) - minQuality; //add next element
 			if(count >= 0l){
 				if(trimLeft){

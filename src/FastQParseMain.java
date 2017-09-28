@@ -1782,6 +1782,7 @@ public class FastQParseMain {
 					minOverlapB = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
+					qualityTrimLength = Integer.MAX_VALUE;
 				}else if(args[i].equals("--qtrim") || args[i].equals("-q")){
 					if(i + 2 >= args.length || args[i + 2].startsWith("-")){
 						qualityTrimQScore2 = Integer.parseInt(args[++i]);
@@ -2010,6 +2011,7 @@ public class FastQParseMain {
 					minOverlapA = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
+					qualityTrimLength = Integer.MAX_VALUE;
 				}else if(args[i].equals("--qtrim") || args[i].equals("-q")){
 					if(i + 2 >= args.length || args[i + 2].startsWith("-")){
 						qualityTrimQScore2 = Integer.parseInt(args[++i]);
