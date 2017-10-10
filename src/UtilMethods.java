@@ -260,6 +260,12 @@ public class UtilMethods {
 		if(b.isEmpty())
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
 		
+		//try hamming (substitution only) search first
+		ArrayList<Match> hammingResults = searchWithNHamming(a, b, max, offset, bestOnly, minOverlap, wildcard);
+		if(!hammingResults.isEmpty()){
+			return hammingResults;
+		}
+		
 		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
 //			int maxNonOverlap = Math.min(b.length() - minOverlap + (int)(max < 0.0 ? (-max * b.length()) : max), b.length());
 //			if(minOverlap < b.length()){
@@ -351,48 +357,53 @@ public class UtilMethods {
 				return result2;
 			}
 			return result;
-		}else{ //very simple substitution only search
-			if(a.length() < b.length())
-				return new ArrayList<Match>();
-			
-//			if(minOverlap < b.length()){
-//				a = makeStr('-', b.length() - minOverlap) + a;
-//				if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
-//					offset += b.length() - minOverlap;
-//			}
-			
-			ArrayList<Match> result = new ArrayList<Match>();
-			int min = Integer.MAX_VALUE;
-			
-			for(int i = Math.min(minOverlap, b.length()); i <= a.length(); i++){
-				int dist = distWithN(a.substring(Math.max(0, i - b.length()), i), b.substring(i < b.length() ? (b.length() - i) : 0), indel, wildcard);
-				int index = i/* - (minOverlap < b.length() ? (b.length() - minOverlap) : 0)*/;
-				int length;
-				if(index < b.length())
-					length = index;
-				else
-					length = b.length();
-				if(dist <= (max < 0.0 ? (-max * length) : max)){
-					if(!bestOnly || dist <= min){
-						result.add(new Match(index, dist, length));
-						min = dist;
-					}
-				}
-			}
-			
-			if(bestOnly && !result.isEmpty()){
-				ArrayList<Match> result2 = new ArrayList<Match>();
-				for(int i = result.size() - 1; i >= 0; i--){
-					if(result.get(i).edits == min){
-						result2.add(result.get(i));
-					}else{
-						break;
-					}
-				}
-				return result2;
-			}
-			return result;
+		}else{
+			return hammingResults;
 		}
+	}
+	
+	//very simple substitution only search
+	public static ArrayList<Match> searchWithNHamming(String a, String b, double max, int offset, boolean bestOnly, int minOverlap, boolean wildcard){
+		if(a.length() < b.length())
+			return new ArrayList<Match>();
+		
+//		if(minOverlap < b.length()){
+//			a = makeStr('-', b.length() - minOverlap) + a;
+//			if(Integer.MAX_VALUE - offset > b.length() - minOverlap)
+//				offset += b.length() - minOverlap;
+//		}
+		
+		ArrayList<Match> result = new ArrayList<Match>();
+		int min = Integer.MAX_VALUE;
+		
+		for(int i = Math.min(minOverlap, b.length()); i <= a.length(); i++){
+			int dist = distWithN(a.substring(Math.max(0, i - b.length()), i), b.substring(i < b.length() ? (b.length() - i) : 0), false, wildcard);
+			int index = i/* - (minOverlap < b.length() ? (b.length() - minOverlap) : 0)*/;
+			int length;
+			if(index < b.length())
+				length = index;
+			else
+				length = b.length();
+			if(dist <= (max < 0.0 ? (-max * length) : max)){
+				if(!bestOnly || dist <= min){
+					result.add(new Match(index, dist, length));
+					min = dist;
+				}
+			}
+		}
+		
+		if(bestOnly && !result.isEmpty()){
+			ArrayList<Match> result2 = new ArrayList<Match>();
+			for(int i = result.size() - 1; i >= 0; i--){
+				if(result.get(i).edits == min){
+					result2.add(result.get(i));
+				}else{
+					break;
+				}
+			}
+			return result2;
+		}
+		return result;
 	}
 	
 	public static int sum(int[] arr){
