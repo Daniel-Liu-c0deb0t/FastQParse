@@ -308,7 +308,7 @@ public class UtilMethods {
 						length = b.length();
 					}
 					length += curr[b.length()][0] - curr[b.length()][1];
-					if(sum(curr[b.length()]) <= (max < 0.0 ? (-max * length) : max)){
+					if(length >= minOverlap && sum(curr[b.length()]) <= (max < 0.0 ? (-max * length) : max)){
 						if(!bestOnly || sum(curr[b.length()]) <= min){
 							result.add(new Match(index, sum(curr[b.length()]), length));
 							min = sum(curr[b.length()]);
