@@ -75,7 +75,7 @@ public class FastQParseMain {
 	private static boolean allowIndelsA = false; //allow insertions and deletions for adapters
 	private static boolean adapterAlgorithm = false; //false = 1st method, true = 2nd method
 	private static boolean checkReversedReads = false; //whether to check for barcodes/enzymes in reversed reads
-	private static boolean wildcard = true; //whether to check for undetermined bp 'N'
+	private static boolean wildcard = false; //whether to check for undetermined bp 'N'
 	private static boolean singleBarcodeMatchOnly = false; //whether to only allow one barcode match
 	private static boolean removeUntrimmedReads = false;
 	private static boolean removeNoAdapterReads = false;
@@ -1670,79 +1670,76 @@ public class FastQParseMain {
 		if(args[0].equals("--demultiplex") || args[0].equals("-d")){
 			boolean clearDir = false;
 			for(int i = 1; i < args.length; i++){
-				if(args[i].equals("--keepfirst") || args[i].equals("-k")){
+				if(args[i].equals("-dF")){
 					removeFirstDup = true;
 					removeBestDup = false;
-				}else if(args[i].equals("--keepbest") || args[i].equals("-K")){
+				}else if(args[i].equals("-dB")){
 					removeBestDup = true;
 					removeFirstDup = false;
 				}else if(args[i].equals("--umi")){
 					randUMILength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--non")){
+				}else if(args[i].equals("--nfilter")){
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						removeDNAWithNPercent = Double.parseDouble(args[++i]);
 					}else{
 						removeDNAWithNPercent = -1.0;
 					}
-				}else if(args[i].equals("--maxoffsetb")){
+				}else if(args[i].equals("-fB")){
 					maxOffsetB = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--maxoffseta")){
+				}else if(args[i].equals("-fA")){
 					maxOffsetA = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--qfilter")){
 					qualityFilter = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--reads") || args[i].equals("-r")){
+				}else if(args[i].equals("-r")){
 					inputFile = new File(args[++i]);
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						inputFile2 = new File(args[++i]);
 					}
-				}else if(args[i].equals("--index") || args[i].equals("-i")){
+				}else if(args[i].equals("-i")){
 					indexFile = new File(args[++i]);
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						indexFile2 = new File(args[++i]);
 					}
 					randUMILength = 12;
-				}else if(args[i].equals("--sample") || args[i].equals("-s")){
+				}else if(args[i].equals("-s")){
 					sampleFile = new File(args[++i]);
-				}else if(args[i].equals("--output") || args[i].equals("-o")){
+				}else if(args[i].equals("-o")){
 					outputDir = args[++i];
 					if(!outputDir.endsWith(File.separator) && !outputDir.endsWith("/") && !outputDir.endsWith("\\")){
 						outputDir += File.separator;
 					}
-				}else if(args[i].equals("--gzip") || args[i].equals("-gz")){
+				}else if(args[i].equals("-gz")){
 					outputGZIP = true;
 				}else if(args[i].equals("--cleardir")){
 					clearDir = true;
 				}else if(args[i].equals("--savetemp")){
 					saveTemp = true;
-				}else if(args[i].equals("--keepbarcode")){
+				}else if(args[i].equals("-kB")){
 					removeBarRand = false;
-				}else if(args[i].equals("--keepenzyme")){
+				}else if(args[i].equals("-kE")){
 					removeEnzyme = false;
-				}else if(args[i].equals("--maxedita")){
-					editMaxA = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxeditb")){
-					editMaxB = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxeditm")){
-					editMaxM = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxeditap")){
-					editMaxA = -Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxeditbp")){
-					editMaxB = -Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxeditmp")){
-					editMaxM = -Double.parseDouble(args[++i]);
+				}else if(args[i].equals("-eA")){
+					double d = Double.parseDouble(args[++i]);
+					editMaxA = d < 1.0 ? -d : d;
+				}else if(args[i].equals("-eB")){
+					double d = Double.parseDouble(args[++i]);
+					editMaxB = d < 1.0 ? -d : d;
+				}else if(args[i].equals("-eM")){
+					double d = Double.parseDouble(args[++i]);
+					editMaxM = d < 1.0 ? -d : d;
 				}else if(args[i].equals("--savedup")){
 					saveDup = true;
 				}else if(args[i].equals("--printprocessed")){
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--printduplicate")){
 					printDuplicateInterval = Long.parseLong(args[++i]);
-				}else if(args[i].equals("--pairmerge") || args[i].equals("-m")){
+				}else if(args[i].equals("-m")){
 					mergePairedEnds = true;
-				}else if(args[i].equals("--minlen")){
+				}else if(args[i].equals("--min")){
 					minLength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--maxlen")){
+				}else if(args[i].equals("--max")){
 					maxLength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--fadapterstart") || args[i].equals("-a")){
+				}else if(args[i].equals("-a")){
 					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						if(args[i + 1].startsWith("^")){
 							adaptersF.add(new Adapter(args[i + 1].substring(1), true, true));
@@ -1751,7 +1748,7 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--fadapterend") || args[i].equals("-A")){
+				}else if(args[i].equals("-A")){
 					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						if(args[i + 1].endsWith("$")){
 							adaptersF.add(new Adapter(args[i + 1].substring(0, args[i + 1].length() - 1), false, true));
@@ -1760,7 +1757,7 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--radapterstart") || args[i].equals("-z")){
+				}else if(args[i].equals("-z")){
 					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						if(args[i + 1].startsWith("^")){
 							adaptersR.add(new Adapter(args[i + 1].substring(1), true, true));
@@ -1769,7 +1766,7 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--radapterend") || args[i].equals("-Z")){
+				}else if(args[i].equals("-Z")){
 					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						if(args[i + 1].endsWith("$")){
 							adaptersR.add(new Adapter(args[i + 1].substring(0, args[i + 1].length() - 1), false, true));
@@ -1778,14 +1775,14 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--minoverlapa")){
+				}else if(args[i].equals("-oA")){
 					minOverlapA = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--minoverlapb")){
+				}else if(args[i].equals("-oB")){
 					minOverlapB = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
 					qualityTrimLength = Integer.MAX_VALUE;
-				}else if(args[i].equals("--qtrim") || args[i].equals("-q")){
+				}else if(args[i].equals("-q")){
 					if(i + 2 >= args.length || args[i + 2].startsWith("-")){
 						qualityTrimQScore2 = Integer.parseInt(args[++i]);
 					}else{
@@ -1796,31 +1793,31 @@ public class FastQParseMain {
 					qualityTrimLength = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altmerge")){
 					mergeAlgorithm = true;
-				}else if(args[i].equals("--ntrim")){
+				}else if(args[i].equals("-n")){
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						trimNPercent = Double.parseDouble(args[++i]);
 					}else{
 						trimNPercent = 0.5;
 					}
-				}else if(args[i].equals("--indelsb")){
+				}else if(args[i].equals("-iB")){
 					allowIndelsB = true;
-				}else if(args[i].equals("--indelsa")){
+				}else if(args[i].equals("-iA")){
 					allowIndelsA = true;
 				}else if(args[i].equals("--altadapter")){
 					adapterAlgorithm = true;
 				}else if(args[i].equals("--altqfilter")){
 					filterAlgorithm = true;
-				}else if(args[i].equals("--checkreversed")){
+				}else if(args[i].equals("--rev")){
 					checkReversedReads = true;
-				}else if(args[i].equals("--nowildcard")){
-					wildcard = false;
-				}else if(args[i].equals("--singlematch")){
+				}else if(args[i].equals("-w")){
+					wildcard = true;
+				}else if(args[i].equals("-S")){
 					singleBarcodeMatchOnly = true;
-				}else if(args[i].equals("--removeuntrimmed")){
+				}else if(args[i].equals("-nQ")){
 					removeUntrimmedReads = true;
-				}else if(args[i].equals("--removenoadapter")){
+				}else if(args[i].equals("-nA")){
 					removeNoAdapterReads = true;
-				}else if(args[i].equals("--removenomerge")){
+				}else if(args[i].equals("-nM")){
 					removeNoMergeReads = true;
 				}
 			}
@@ -1864,25 +1861,25 @@ public class FastQParseMain {
 			System.out.println("Ended on: " + DATE_FORMAT.format(date));
 		}else if(args[0].equals("--dedup") || args[0].equals("-D")){
 			for(int i = 1; i < args.length; i++){
-				if(args[i].equals("--keepfirst") || args[i].equals("-k")){
+				if(args[i].equals("-dF")){
 					removeFirstDup = true;
 					removeBestDup = false;
-				}else if(args[i].equals("--keepbest") || args[i].equals("-K")){
+				}else if(args[i].equals("-dB")){
 					removeBestDup = true;
 					removeFirstDup = false;
-				}else if(args[i].equals("--reads") || args[i].equals("-r")){
+				}else if(args[i].equals("-r")){
 					inputFile = new File(args[++i]);
-				}else if(args[i].equals("--index") || args[i].equals("-i")){
+				}else if(args[i].equals("-i")){
 					indexFile = new File(args[++i]);
 					randUMILength = 12;
-				}else if(args[i].equals("--output") || args[i].equals("-o")){
+				}else if(args[i].equals("-o")){
 					outputDir = args[++i];
 					if(!outputDir.endsWith(File.separator) && !outputDir.endsWith("/") && !outputDir.endsWith("\\")){
 						outputDir += File.separator;
 					}
-				}else if(args[i].equals("--overwrite") || args[i].equals("-O")){
+				}else if(args[i].equals("-O")){
 					replaceOriginal = true;
-				}else if(args[i].equals("--gzip") || args[i].equals("-gz")){
+				}else if(args[i].equals("-gz")){
 					outputGZIP = true;
 				}else if(args[i].equals("--savedup")){
 					saveDup = true;
@@ -1920,27 +1917,26 @@ public class FastQParseMain {
 			System.out.println("Ended on: " + DATE_FORMAT.format(date));
 		}else if(args[0].equals("--pairmerge") || args[0].equals("-m")){
 			for(int i = 1; i < args.length; i++){
-				if(args[i].equals("--reads") || args[i].equals("-r")){
+				if(args[i].equals("-r")){
 					inputFile = new File(args[++i]);
 					inputFile2 = new File(args[++i]);
-				}else if(args[i].equals("--output") || args[i].equals("-o")){
+				}else if(args[i].equals("-o")){
 					outputDir = args[++i];
 					if(!outputDir.endsWith(File.separator) && !outputDir.endsWith("/") && !outputDir.endsWith("\\")){
 						outputDir += File.separator;
 					}
-				}else if(args[i].equals("--gzip") || args[i].equals("-gz")){
+				}else if(args[i].equals("-gz")){
 					outputGZIP = true;
-				}else if(args[i].equals("--maxeditm")){
-					editMaxM = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxeditmp")){
-					editMaxM = -Double.parseDouble(args[++i]);
+				}else if(args[i].equals("-eM")){
+					double d = Double.parseDouble(args[++i]);
+					editMaxM = d < 1.0 ? -d : d;
 				}else if(args[i].equals("--printprocessed")){
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--altmerge")){
 					mergeAlgorithm = true;
-				}else if(args[i].equals("--nowildcard")){
-					wildcard = false;
-				}else if(args[i].equals("--removenomerge")){
+				}else if(args[i].equals("-w")){
+					wildcard = true;
+				}else if(args[i].equals("-nM")){
 					removeNoMergeReads = true;
 				}
 			}
@@ -1968,32 +1964,31 @@ public class FastQParseMain {
 			System.out.println("Ended on: " + DATE_FORMAT.format(date));
 		}else if(args[0].equals("--filter") || args[0].equals("-f")){
 			for(int i = 1; i < args.length; i++){
-				if(args[i].equals("--reads") || args[i].equals("-r")){
+				if(args[i].equals("-r")){
 					inputFile = new File(args[++i]);
-				}else if(args[i].equals("--output") || args[i].equals("-o")){
+				}else if(args[i].equals("-o")){
 					outputDir = args[++i];
 					if(!outputDir.endsWith(File.separator) && !outputDir.endsWith("/") && !outputDir.endsWith("\\")){
 						outputDir += File.separator;
 					}
-				}else if(args[i].equals("--gzip") || args[i].equals("-gz")){
+				}else if(args[i].equals("-gz")){
 					outputGZIP = true;
-				}else if(args[i].equals("--maxedita")){
-					editMaxA = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxeditap")){
-					editMaxA = -Double.parseDouble(args[++i]);
+				}else if(args[i].equals("-eA")){
+					double d = Double.parseDouble(args[++i]);
+					editMaxA = d < 1.0 ? -d : d;
 				}else if(args[i].equals("--printprocessed")){
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--qfilter")){
 					qualityFilter = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("--maxoffseta")){
+				}else if(args[i].equals("-fA")){
 					maxOffsetA = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--overwrite") || args[i].equals("-O")){
+				}else if(args[i].equals("-O")){
 					replaceOriginal = true;
-				}else if(args[i].equals("--minlen")){
+				}else if(args[i].equals("--min")){
 					minLength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--maxlen")){
+				}else if(args[i].equals("--max")){
 					maxLength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--fadapterstart") || args[i].equals("-a")){
+				}else if(args[i].equals("-a")){
 					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						if(args[i + 1].startsWith("^")){
 							adaptersF.add(new Adapter(args[i + 1].substring(1), true, true));
@@ -2002,7 +1997,7 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--fadapterend") || args[i].equals("-A")){
+				}else if(args[i].equals("-A")){
 					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						if(args[i + 1].endsWith("$")){
 							adaptersF.add(new Adapter(args[i + 1].substring(0, args[i + 1].length() - 1), false, true));
@@ -2011,12 +2006,12 @@ public class FastQParseMain {
 						}
 						i++;
 					}
-				}else if(args[i].equals("--minoverlapa")){
+				}else if(args[i].equals("-oA")){
 					minOverlapA = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
 					qualityTrimLength = Integer.MAX_VALUE;
-				}else if(args[i].equals("--qtrim") || args[i].equals("-q")){
+				}else if(args[i].equals("-q")){
 					if(i + 2 >= args.length || args[i + 2].startsWith("-")){
 						qualityTrimQScore2 = Integer.parseInt(args[++i]);
 					}else{
@@ -2025,29 +2020,29 @@ public class FastQParseMain {
 					}
 				}else if(args[i].equals("--qtrimlen")){
 					qualityTrimLength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--non")){
+				}else if(args[i].equals("--nfilter")){
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						removeDNAWithNPercent = Double.parseDouble(args[++i]);
 					}else{
 						removeDNAWithNPercent = -1.0;
 					}
-				}else if(args[i].equals("--ntrim")){
+				}else if(args[i].equals("-n")){
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						trimNPercent = Double.parseDouble(args[++i]);
 					}else{
 						trimNPercent = 0.5;
 					}
-				}else if(args[i].equals("--indelsa")){
+				}else if(args[i].equals("-iA")){
 					allowIndelsA = true;
 				}else if(args[i].equals("--altadapter")){
 					adapterAlgorithm = true;
 				}else if(args[i].equals("--altqfilter")){
 					filterAlgorithm = true;
-				}else if(args[i].equals("--nowildcard")){
-					wildcard = false;
-				}else if(args[i].equals("--removeuntrimmed")){
+				}else if(args[i].equals("-w")){
+					wildcard = true;
+				}else if(args[i].equals("-nQ")){
 					removeUntrimmedReads = true;
-				}else if(args[i].equals("--removenoadapter")){
+				}else if(args[i].equals("-nA")){
 					removeNoAdapterReads = true;
 				}
 			}
