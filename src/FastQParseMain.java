@@ -1678,7 +1678,7 @@ public class FastQParseMain {
 					removeFirstDup = false;
 				}else if(args[i].equals("--umi")){
 					randUMILength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--nfilter")){
+				}else if(args[i].equals("-N")){
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						removeDNAWithNPercent = Double.parseDouble(args[++i]);
 					}else{
@@ -1688,7 +1688,7 @@ public class FastQParseMain {
 					maxOffsetB = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("-fA")){
 					maxOffsetA = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--qfilter")){
+				}else if(args[i].equals("-Q")){
 					qualityFilter = Double.parseDouble(args[++i]);
 				}else if(args[i].equals("-r")){
 					inputFile = new File(args[++i]);
@@ -1978,7 +1978,7 @@ public class FastQParseMain {
 					editMaxA = d < 1.0 ? -d : d;
 				}else if(args[i].equals("--printprocessed")){
 					printProcessedInterval = Long.parseLong(args[++i]);
-				}else if(args[i].equals("--qfilter")){
+				}else if(args[i].equals("-Q")){
 					qualityFilter = Double.parseDouble(args[++i]);
 				}else if(args[i].equals("-fA")){
 					maxOffsetA = Integer.parseInt(args[++i]);
@@ -2020,7 +2020,7 @@ public class FastQParseMain {
 					}
 				}else if(args[i].equals("--qtrimlen")){
 					qualityTrimLength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--nfilter")){
+				}else if(args[i].equals("-N")){
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						removeDNAWithNPercent = Double.parseDouble(args[++i]);
 					}else{
