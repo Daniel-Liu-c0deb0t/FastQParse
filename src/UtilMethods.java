@@ -316,7 +316,6 @@ public class UtilMethods {
 					}
 				}else{
 					end++;
-					prev[end] = new int[]{(int)(max < 0.0 ? (-max * b.length()) : max) + 1, 0, 0};
 				}
 			}
 			
