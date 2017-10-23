@@ -250,8 +250,7 @@ public class UtilMethods {
 	}
 	
 	//fuzzy search for string b in a
-	//returns a list of string end positions + 1
-	//set offset to Integer.MAX_VALUE for searching
+	//returns a list of string starting positions
 	//set minOverlap to Integer.MAX_VALUE to make sure that the match only appears within the string to be searched
 	public static ArrayList<Match> searchWithN(String a, String b, double max, int offset, boolean indel, boolean bestOnly, int minOverlap, boolean wildcard){
 		if(b.isEmpty())
@@ -265,45 +264,79 @@ public class UtilMethods {
 		
 		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
 			int[][] curr = new int[b.length() + 1][3]; //{insertion, deletion, substitution}
+			int[] currO = new int[b.length() + 1]; //origin
 			int[][] prev = new int[b.length() + 1][3];
+			int[] prevO = new int[b.length() + 1];
 			ArrayList<Match> result = new ArrayList<Match>();
 			int min = Integer.MAX_VALUE;
-			int end = Math.min((int)(max < 0.0 ? (-max * b.length()) : max) + b.length() - (minOverlap > b.length() ? b.length() : minOverlap) + 1, b.length());
+			int end = Math.min((int)(max < 0.0 ? (-max * b.length()) : max) + 1, b.length());
 			
 //			for(int i = 0; i <= b.length(); i++)
-//				System.out.print(Math.max(0, minOverlap < b.length() ? (i - b.length() + minOverlap) : i) + " ");
+//				System.out.format("%3d", i);
 //			System.out.println();
 			for(int i = 1; i <= a.length(); i++){
-				curr[0] = new int[]{0, Math.max(0, i - 1 - offset), 0};
+				curr[0] = new int[]{0, 0, 0};
+				currO[0] = i;
 				for(int j = 1; j <= end; j++){
 					if(Character.toUpperCase(b.charAt(j - 1)) == Character.toUpperCase(a.charAt(i - 1)) ||
 							(wildcard && (Character.toUpperCase(b.charAt(j - 1)) == 'N' || Character.toUpperCase(a.charAt(i - 1)) == 'N'))){
-						curr[j] = i == 1 ? new int[]{Math.max(0, minOverlap < b.length() ? (j - 1 - b.length() + minOverlap) : j - 1), 0, 0} : copy(prev[j - 1]);
+						curr[j] = i == 1 ? new int[]{j - 1, 0, 0} : copy(prev[j - 1]);
+						currO[j] = i == 1 ? 0 : prevO[j - 1];
 					}else{
-						int sub = i == 1 ? Math.max(0, minOverlap < b.length() ? (j - 1 - b.length() + minOverlap) : j - 1) : sum(prev[j - 1]);
+						int sub = i == 1 ? j - 1 : sum(prev[j - 1]);
 						int ins = sum(curr[j - 1]);
-						int del = i == 1 ? Math.max(0, minOverlap < b.length() ? (j - b.length() + minOverlap) : j) : sum(prev[j]);
+						int del = i == 1 ? j : sum(prev[j]);
 						if(sub <= ins && sub <= del){
-							curr[j] = i == 1 ? new int[]{Math.max(0, minOverlap < b.length() ? (j - 1 - b.length() + minOverlap) : j - 1), 0, 1} : new int[]{prev[j - 1][0], prev[j - 1][1], prev[j - 1][2] + 1};
+							curr[j] = i == 1 ? new int[]{j - 1, 0, 1} : new int[]{prev[j - 1][0], prev[j - 1][1], prev[j - 1][2] + 1};
+							currO[j] = i == 1 ? 0 : prevO[j - 1];
 						}else if(ins <= sub && ins <= del){
 							curr[j] = new int[]{curr[j - 1][0] + 1, curr[j - 1][1], curr[j - 1][2]};
+							currO[j] = currO[j - 1];
 						}else if(del <= sub && del <= ins){
-							curr[j] = i == 1 ? new int[]{Math.max(0, minOverlap < b.length() ? (j - b.length() + minOverlap) : j), 1, 0} : new int[]{prev[j][0], prev[j][1] + 1, prev[j][2]};
+							curr[j] = i == 1 ? new int[]{j, 1, 0} : new int[]{prev[j][0], prev[j][1] + 1, prev[j][2]};
+							currO[j] = i == 1 ? 0 : prevO[j];
 						}
 					}
+					
+					if(i == a.length()){
+						int length = j - 1 + curr[j - 1][0] - curr[j - 1][1];
+						int index = currO[j - 1];
+//						System.out.println("\nLength: " + length + " Index: " + index);
+						if(length >= minOverlap && sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max)){
+							if(!bestOnly || sum(curr[j - 1]) <= min){
+								result.add(new Match(index, sum(curr[j - 1]), length));
+								min = sum(curr[j - 1]);
+							}
+						}
+					}
+					
 					prev[j - 1] = copy(curr[j - 1]);
-//					System.out.print(sum(curr[j - 1]) + " ");
+					prevO[j - 1] = currO[j - 1];
+//					System.out.format("%3d", sum(curr[j - 1]));
 				}
+				
+				if(i == a.length()){
+					int length = end + curr[end][0] - curr[end][1];
+					int index = currO[end];
+					if(length >= minOverlap && sum(curr[end]) <= (max < 0.0 ? (-max * length) : max)){
+						if(!bestOnly || sum(curr[end]) <= min){
+							result.add(new Match(index, sum(curr[end]), length));
+							min = sum(curr[end]);
+						}
+					}
+				}
+				
 				prev[end] = copy(curr[end]);
-//				System.out.println(sum(curr[end]));
+				prevO[end] = currO[end];
+//				System.out.format("%3d\n", sum(curr[end]));
 				while(end >= 0 && sum(curr[end]) > (max < 0.0 ? (-max * b.length()) : max)){
 					end--;
 				}
 				if(end == b.length()){
-					int index = i;
+					int index = currO[b.length()];
 					int length;
-					if(index < b.length()){
-						length = index;
+					if(a.length() - index < b.length()){
+						length = a.length() - index;
 					}else{
 						length = b.length();
 					}
@@ -316,6 +349,7 @@ public class UtilMethods {
 					}
 				}else{
 					end++;
+					prev[end] = new int[]{(int)(max < 0.0 ? (-max * b.length()) : max) + 1, 0, 0};
 				}
 			}
 			
@@ -344,17 +378,16 @@ public class UtilMethods {
 		ArrayList<Match> result = new ArrayList<Match>();
 		int min = Integer.MAX_VALUE;
 		
-		for(int i = Math.min(minOverlap, b.length()); i <= a.length(); i++){
-			int dist = distWithN(a.substring(Math.max(0, i - b.length()), i), b.substring(i < b.length() ? (b.length() - i) : 0), false, wildcard);
-			int index = i;
+		for(int i = 0; i <= a.length() - (minOverlap > b.length() ? b.length() : minOverlap); i++){
+			int dist = distWithN(a.substring(i, Math.min(i + b.length(), a.length())), b.substring(0, a.length() - i < b.length() ? (a.length() - i) : b.length()), false, wildcard);
 			int length;
-			if(index < b.length())
-				length = index;
+			if(a.length() - i < b.length())
+				length = a.length() - i;
 			else
 				length = b.length();
 			if(dist <= (max < 0.0 ? (-max * length) : max)){
 				if(!bestOnly || dist <= min){
-					result.add(new Match(index, dist, length));
+					result.add(new Match(i, dist, length));
 					min = dist;
 				}
 			}
@@ -594,11 +627,9 @@ public class UtilMethods {
 				
 				ArrayList<Match> matches;
 				if(a.anchored){
-					matches = searchWithN(a.isStart ? s.substring(0, Math.min(a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())) :
-						reverse(s).substring(0, Math.min(a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())), a.isStart ? a.str : reverse(a.str), editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
-				}else{ //because searchWithN can only find ending locations, the 3' adapters need to be reversed along with the read
-					ArrayList<Match> tempMatches = searchWithN(a.isStart ? s.substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())) :
-						reverse(s).substring(0, Math.min(maxOffset + a.str.length() + (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax), s.length())), a.isStart ? a.str : reverse(a.str), editMax, maxOffset, indel, false, minOverlap, wildcard);
+					matches = searchWithN((a.isStart ? reverse(s) : s).substring(0, Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
+				}else{ //because searchWithN can only find starting locations, the 5' adapters need to be reversed along with the read
+					ArrayList<Match> tempMatches = searchWithN((a.isStart ? reverse(s) : s).substring(0, Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
 					matches = new ArrayList<Match>();
 					
 					int minEdit = Integer.MAX_VALUE;
@@ -618,11 +649,11 @@ public class UtilMethods {
 				}
 				if(!matches.isEmpty()){
 					if(a.isStart){
-						s = s.substring(matches.get(matches.size() - 1).end);
-						q = q.substring(matches.get(matches.size() - 1).end);
+						s = s.substring(s.length() - matches.get(0).start); //reverse the index to get the correct index
+						q = q.substring(q.length() - matches.get(0).start);
 					}else{
-						s = s.substring(0, s.length() - matches.get(matches.size() - 1).end); //reverse the index to get the correct index
-						q = q.substring(0, q.length() - matches.get(matches.size() - 1).end);
+						s = s.substring(0, matches.get(0).start);
+						q = q.substring(0, matches.get(0).start);
 					}
 				}
 			}
