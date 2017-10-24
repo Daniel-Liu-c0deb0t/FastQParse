@@ -299,9 +299,9 @@ public class UtilMethods {
 					}
 					
 					if(i == a.length()){
-						int length = j - 1 + curr[j - 1][0] - curr[j - 1][1];
+						int length = j - 1;
 						int index = currO[j - 1];
-//						System.out.println("\nLength: " + length + " Index: " + index);
+						
 						if(length >= minOverlap && sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max)){
 							if(!bestOnly || sum(curr[j - 1]) <= min){
 								result.add(new Match(index, sum(curr[j - 1]), length));
@@ -316,8 +316,9 @@ public class UtilMethods {
 				}
 				
 				if(i == a.length()){
-					int length = end + curr[end][0] - curr[end][1];
+					int length = end;
 					int index = currO[end];
+					
 					if(length >= minOverlap && sum(curr[end]) <= (max < 0.0 ? (-max * length) : max)){
 						if(!bestOnly || sum(curr[end]) <= min){
 							result.add(new Match(index, sum(curr[end]), length));
