@@ -627,9 +627,10 @@ public class UtilMethods {
 				
 				ArrayList<Match> matches;
 				if(a.anchored){
-					matches = searchWithN((a.isStart ? reverse(s) : s).substring(0, Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
+					matches = searchWithN((a.isStart ? reverse(s) : s).substring(s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
+					matches.get(0).start += s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
 				}else{ //because searchWithN can only find starting locations, the 5' adapters need to be reversed along with the read
-					ArrayList<Match> tempMatches = searchWithN((a.isStart ? reverse(s) : s).substring(0, Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
+					ArrayList<Match> tempMatches = searchWithN((a.isStart ? reverse(s) : s).substring(s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
 					matches = new ArrayList<Match>();
 					
 					int minEdit = Integer.MAX_VALUE;
@@ -637,6 +638,7 @@ public class UtilMethods {
 					int matchIndex = -1;
 					for(int j = 0; j < tempMatches.size(); j++){
 						Match m = tempMatches.get(j);
+						m.start += s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
 						if(m.correctLength >= maxLength && (m.correctLength > maxLength || m.edits < minEdit)){
 							matchIndex = j;
 							maxLength = m.correctLength;
