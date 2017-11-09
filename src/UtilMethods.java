@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.Random;
 
 public class UtilMethods {
 	private static HashMap<Character, Character> complements = new HashMap<Character, Character>();
+	private static char[] bp = {'A', 'T', 'C', 'G'};
 	
 	static{
 		//complements for each bp
@@ -783,5 +785,31 @@ public class UtilMethods {
 		}
 		
 		return new String[]{s, q};
+	}
+	
+	public static String randSeq(Random r, int length){
+		char[] res = new char[length];
+		for(int i = 0; i < length; i++){
+			res[i] = bp[r.nextInt(bp.length)];
+		}
+		return new String(res);
+	}
+	
+	public static String randEdit(Random r, String s, int edit, boolean indels){
+		StringBuilder b = new StringBuilder(s);
+		for(int i = 0; i < edit; i++){
+			int idx = r.nextInt(s.length());
+			int mode = indels ? r.nextInt(3) : 0;
+			
+			if(mode == 0){
+				b.setCharAt(idx, bp[r.nextInt(bp.length)]);
+			}else if(mode == 1){
+				b.insert(idx, bp[r.nextInt(bp.length)]);
+			}else{
+				b.deleteCharAt(idx);
+			}
+		}
+		
+		return b.toString();
 	}
 }

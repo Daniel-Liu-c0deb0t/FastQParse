@@ -17,6 +17,7 @@ import java.util.Date;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Random;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -81,9 +82,15 @@ public class FastQParseMain {
 	private static boolean removeNoAdapterReads = false;
 	private static boolean removeNoMergeReads = false;
 	
+	private static boolean simReversed = false;
+	private static boolean simUMI = false;
+	private static int simReadLength = 100;
+	private static long simIter = 1000;
+	
 	private enum Mode{ //features
 		DEMULTIPLEX("Demultiplex", "demultiplex"), DEDUP("Deduplicate Reads", "dedup"),
-		PAIRMERGE("Merge Paired-End Reads", "pairmerge"), FILTER("Filter Reads", "filter");
+		PAIRMERGE("Merge Paired-End Reads", "pairmerge"), FILTER("Filter Reads", "filter"),
+		SIM_READS("Generate Simulated Reads", "sim");
 		
 		String description1;
 		String description2;
@@ -527,6 +534,12 @@ public class FastQParseMain {
 			logWriter.println("Number of Reads Removed: " + DECIMAL_FORMAT.format(undeterminedDNA));
 			logWriter.println("% Reads Removed: " + DECIMAL_FORMAT.format((double)undeterminedDNA / (double)totalDNAProcessed));
 			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount));
+		}else if(mode == Mode.SIM_READS){
+			readSample();
+			if(simUMI)
+				simUMIReads();
+			else
+				simReads();
 		}
 	}
 	
@@ -548,7 +561,7 @@ public class FastQParseMain {
 			if(!flag){
 				enzymeF = line[2];
 				constEnzymesF = EnzymeList.enzymes.get(enzymeF.toUpperCase());
-				if(line.length > 3){ //if there is reversed enzymes
+				if(line.length > 3){ //if there are reversed enzymes
 					enzymeR = line[3];
 					constEnzymesR = EnzymeList.enzymes.get(enzymeR.toUpperCase());
 				}else{ //reversed enzymes will be forwards enzymes
@@ -560,6 +573,242 @@ public class FastQParseMain {
 		}
 		
 		reader.close();
+	}
+	
+	private void simReads() throws Exception{
+		BufferedWriter inWriterF = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R1.fastq.gz"))));
+		BufferedWriter inWriterR = null;
+		BufferedWriter[] outWriterF = new BufferedWriter[sampleMapF.size()];
+		BufferedWriter[] outWriterR = null;
+		
+		for(int i = 0; i < sampleMapF.size(); i++){
+			outWriterF[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R1.fastq.gz"))));
+		}
+		
+		if(simReversed){
+			inWriterR = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R2.fastq.gz"))));
+			outWriterR = new BufferedWriter[sampleMapF.size()];
+			
+			for(int i = 0; i < sampleMapF.size(); i++){
+				outWriterR[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R2.fastq.gz"))));
+			}
+		}
+		
+		long[][] simCounts = new long[sampleMapF.size()][2];
+		
+		for(long i = 0; i < simIter; i++){
+			Random r = new Random();
+			
+			int barcode = r.nextInt(sampleMapF.size());
+			simCounts[barcode][0] += simReversed ? 2 : 1;
+			
+			String seqF = UtilMethods.randSeq(r, simReadLength);
+			String readF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
+					UtilMethods.randEdit(r, constEnzymesF.get(r.nextInt(constEnzymesF.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqF;
+			if(!adaptersF.isEmpty() && r.nextFloat() < 0.5f){
+				readF += UtilMethods.randEdit(r, adaptersF.get(r.nextInt(adaptersF.size())).str, r.nextInt((int)editMaxA + 1), allowIndelsA);
+				simCounts[barcode][1]++;
+			}
+			
+			inWriterF.write("SIMULATED READ");
+			inWriterF.newLine();
+			inWriterF.write(readF);
+			inWriterF.newLine();
+			inWriterF.write(description2);
+			inWriterF.newLine();
+			inWriterF.write(UtilMethods.makeStr('A', readF.length()));
+			inWriterF.newLine();
+			
+			outWriterF[barcode].write("SIMULATED READ");
+			outWriterF[barcode].newLine();
+			outWriterF[barcode].write(seqF);
+			outWriterF[barcode].newLine();
+			outWriterF[barcode].write(description2);
+			outWriterF[barcode].newLine();
+			outWriterF[barcode].write(UtilMethods.makeStr('A', seqF.length()));
+			outWriterF[barcode].newLine();
+			
+			if(simReversed){
+				String seqR = UtilMethods.randSeq(r, simReadLength);
+				String readR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
+						UtilMethods.randEdit(r, constEnzymesR.get(r.nextInt(constEnzymesR.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqR;
+				if(!adaptersR.isEmpty() && r.nextFloat() < 0.5f){
+					readR += UtilMethods.randEdit(r, adaptersR.get(r.nextInt(adaptersR.size())).str, r.nextInt((int)editMaxA + 1), allowIndelsA);
+					simCounts[barcode][1]++;
+				}
+				
+				inWriterR.write("SIMULATED READ");
+				inWriterR.newLine();
+				inWriterR.write(readR);
+				inWriterR.newLine();
+				inWriterR.write(description2);
+				inWriterR.newLine();
+				inWriterR.write(UtilMethods.makeStr('A', readR.length()));
+				inWriterR.newLine();
+				
+				outWriterR[barcode].write("SIMULATED READ");
+				outWriterR[barcode].newLine();
+				outWriterR[barcode].write(seqR);
+				outWriterR[barcode].newLine();
+				outWriterR[barcode].write(description2);
+				outWriterR[barcode].newLine();
+				outWriterR[barcode].write(UtilMethods.makeStr('A', seqR.length()));
+				outWriterR[barcode].newLine();
+			}
+		}
+		
+		inWriterF.close();
+		for(int i = 0; i < sampleMapF.size(); i++){
+			outWriterF[i].close();
+		}
+		if(simReversed){
+			inWriterR.close();
+			for(int i = 0; i < sampleMapF.size(); i++){
+				outWriterR[i].close();
+			}
+		}
+		
+		logWriter.println("Sample\tReads\tAdapters");
+		for(int i = 0; i < sampleMapF.size(); i++){
+			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + simCounts[i][0] + "\t" + simCounts[i][1]);
+		}
+	}
+	
+	private void simUMIReads() throws Exception{
+		BufferedWriter inWriterF = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R1.fastq.gz"))));
+		BufferedWriter inWriterF2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_indexes_R1.fastq.gz"))));
+		BufferedWriter inWriterR = null;
+		BufferedWriter inWriterR2 = null;
+		BufferedWriter[] outWriterF = new BufferedWriter[sampleMapF.size()];
+		BufferedWriter[] outWriterF2 = new BufferedWriter[sampleMapF.size()];
+		BufferedWriter[] outWriterR = null;
+		BufferedWriter[] outWriterR2 = null;
+		
+		for(int i = 0; i < sampleMapF.size(); i++){
+			outWriterF[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R1.fastq.gz"))));
+			outWriterF2[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_index_" + sampleMapF.get(sampleDNAF.get(i)) + "_R1.fastq.gz"))));
+		}
+		
+		if(simReversed){
+			inWriterR = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R2.fastq.gz"))));
+			inWriterR2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_indexes_R2.fastq.gz"))));
+			outWriterR = new BufferedWriter[sampleMapF.size()];
+			outWriterR2 = new BufferedWriter[sampleMapF.size()];
+			
+			for(int i = 0; i < sampleMapF.size(); i++){
+				outWriterR[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R2.fastq.gz"))));
+				outWriterR2[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_index_" + sampleMapF.get(sampleDNAF.get(i)) + "_R2.fastq.gz"))));
+			}
+		}
+		
+		long[][] simCounts = new long[sampleMapF.size()][1];
+		
+		for(long i = 0; i < simIter; i++){
+			Random r = new Random();
+			
+			int barcode = r.nextInt(sampleMapF.size());
+			simCounts[barcode][0] += simReversed ? 2 : 1;
+			
+			String readF = UtilMethods.randSeq(r, simReadLength);
+			String indexF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+			
+			inWriterF.write("SIMULATED READ");
+			inWriterF.newLine();
+			inWriterF.write(readF);
+			inWriterF.newLine();
+			inWriterF.write(description2);
+			inWriterF.newLine();
+			inWriterF.write(UtilMethods.makeStr('A', readF.length()));
+			inWriterF.newLine();
+			
+			inWriterF2.write("SIMULATED INDEX");
+			inWriterF2.newLine();
+			inWriterF2.write(indexF);
+			inWriterF2.newLine();
+			inWriterF2.write(description2);
+			inWriterF2.newLine();
+			inWriterF2.write(UtilMethods.makeStr('A', indexF.length()));
+			inWriterF2.newLine();
+			
+			outWriterF[barcode].write("SIMULATED READ");
+			outWriterF[barcode].newLine();
+			outWriterF[barcode].write(readF);
+			outWriterF[barcode].newLine();
+			outWriterF[barcode].write(description2);
+			outWriterF[barcode].newLine();
+			outWriterF[barcode].write(UtilMethods.makeStr('A', readF.length()));
+			outWriterF[barcode].newLine();
+			
+			outWriterF2[barcode].write("SIMULATED INDEX");
+			outWriterF2[barcode].newLine();
+			outWriterF2[barcode].write(indexF);
+			outWriterF2[barcode].newLine();
+			outWriterF2[barcode].write(description2);
+			outWriterF2[barcode].newLine();
+			outWriterF2[barcode].write(UtilMethods.makeStr('A', indexF.length()));
+			outWriterF2[barcode].newLine();
+			
+			if(simReversed){
+				String readR = UtilMethods.randSeq(r, simReadLength);
+				String indexR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+				
+				inWriterR.write("SIMULATED READ");
+				inWriterR.newLine();
+				inWriterR.write(readR);
+				inWriterR.newLine();
+				inWriterR.write(description2);
+				inWriterR.newLine();
+				inWriterR.write(UtilMethods.makeStr('A', readR.length()));
+				inWriterR.newLine();
+				
+				inWriterR2.write("SIMULATED INDEX");
+				inWriterR2.newLine();
+				inWriterR2.write(indexR);
+				inWriterR2.newLine();
+				inWriterR2.write(description2);
+				inWriterR2.newLine();
+				inWriterR2.write(UtilMethods.makeStr('A', indexR.length()));
+				inWriterR2.newLine();
+				
+				outWriterR[barcode].write("SIMULATED READ");
+				outWriterR[barcode].newLine();
+				outWriterR[barcode].write(readR);
+				outWriterR[barcode].newLine();
+				outWriterR[barcode].write(description2);
+				outWriterR[barcode].newLine();
+				outWriterR[barcode].write(UtilMethods.makeStr('A', readR.length()));
+				outWriterR[barcode].newLine();
+				
+				outWriterR2[barcode].write("SIMULATED INDEX");
+				outWriterR2[barcode].newLine();
+				outWriterR2[barcode].write(indexR);
+				outWriterR2[barcode].newLine();
+				outWriterR2[barcode].write(description2);
+				outWriterR2[barcode].newLine();
+				outWriterR2[barcode].write(UtilMethods.makeStr('A', indexR.length()));
+				outWriterR2[barcode].newLine();
+			}
+		}
+		
+		inWriterF.close();
+		inWriterF2.close();
+		for(int i = 0; i < sampleMapF.size(); i++){
+			outWriterF[i].close();
+			outWriterF2[i].close();
+		}
+		if(simReversed){
+			inWriterR.close();
+			inWriterR2.close();
+			for(int i = 0; i < sampleMapF.size(); i++){
+				outWriterR[i].close();
+				outWriterR2[i].close();
+			}
+		}
+		
+		logWriter.println("Sample\tReads");
+		for(int i = 0; i < sampleMapF.size(); i++){
+			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + simCounts[i][0]);
+		}
 	}
 	
 	private ArrayList<String> demultiplexFile() throws Exception{
@@ -1814,7 +2063,7 @@ public class FastQParseMain {
 					adapterAlgorithm = true;
 				}else if(args[i].equals("--altqfilter")){
 					filterAlgorithm = true;
-				}else if(args[i].equals("--rev")){
+				}else if(args[i].equals("-R")){
 					checkReversedReads = true;
 				}else if(args[i].equals("-w")){
 					wildcard = true;
@@ -2075,6 +2324,86 @@ public class FastQParseMain {
 			date = new Date();
 			logWriter.println("Ended on: " + DATE_FORMAT.format(date));
 			System.out.println("Ended on: " + DATE_FORMAT.format(date));
+		}else if(args[0].equals("--simulate")){
+			for(int i = 1; i < args.length; i++){
+				if(args[i].equals("-o")){
+					outputDir = args[++i];
+					if(!outputDir.endsWith(File.separator) && !outputDir.endsWith("/") && !outputDir.endsWith("\\")){
+						outputDir += File.separator;
+					}
+				}else if(args[i].equals("-s")){
+					sampleFile = new File(args[++i]);
+				}else if(args[i].equals("-eB")){
+					editMaxB = Double.parseDouble(args[++i]);
+				}else if(args[i].equals("-eA")){
+					editMaxA = Double.parseDouble(args[++i]);
+				}else if(args[i].equals("-a")){
+					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						if(args[i + 1].startsWith("^")){
+							adaptersF.add(new Adapter(args[i + 1].substring(1), true, true));
+						}else{
+							adaptersF.add(new Adapter(args[i + 1], true, false));
+						}
+						i++;
+					}
+				}else if(args[i].equals("-A")){
+					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						if(args[i + 1].endsWith("$")){
+							adaptersF.add(new Adapter(args[i + 1].substring(0, args[i + 1].length() - 1), false, true));
+						}else{
+							adaptersF.add(new Adapter(args[i + 1], false, false));
+						}
+						i++;
+					}
+				}else if(args[i].equals("-z")){
+					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						if(args[i + 1].startsWith("^")){
+							adaptersR.add(new Adapter(args[i + 1].substring(1), true, true));
+						}else{
+							adaptersR.add(new Adapter(args[i + 1], true, false));
+						}
+						i++;
+					}
+				}else if(args[i].equals("-Z")){
+					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						if(args[i + 1].endsWith("$")){
+							adaptersR.add(new Adapter(args[i + 1].substring(0, args[i + 1].length() - 1), false, true));
+						}else{
+							adaptersR.add(new Adapter(args[i + 1], false, false));
+						}
+						i++;
+					}
+				}else if(args[i].equals("--umi")){
+					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						randUMILength = Integer.parseInt(args[++i]);
+					}else{
+						randUMILength = 12;
+					}
+					simUMI = true;
+				}else if(args[i].equals("--reversed")){
+					simReversed = true;
+				}else if(args[i].equals("--iter")){
+					simIter = Long.parseLong(args[++i]);
+				}else if(args[i].equals("--len")){
+					simReadLength = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("--iB")){
+					allowIndelsB = true;
+				}else if(args[i].equals("--iA")){
+					allowIndelsA = true;
+				}
+			}
+			
+			File f = new File(outputDir);
+			if(!f.exists())
+				f.mkdirs();
+			
+			File f2 = new File(outputDir + "results" + File.separatorChar);
+			if(!f2.exists())
+				f2.mkdirs();
+			
+			logWriter = new PrintWriter(new BufferedWriter(new FileWriter(outputDir + "FastQParse_" + Mode.SIM_READS.description2 + ".log"), BUFFER_SIZE_LOG));
+			
+			new FastQParseMain(Mode.SIM_READS);
 		}
 		if(logWriter != null){
 			logWriter.close();
