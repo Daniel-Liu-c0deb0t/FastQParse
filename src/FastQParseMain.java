@@ -18,6 +18,9 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -82,6 +85,9 @@ public class FastQParseMain {
 	private static boolean removeNoAdapterReads = false;
 	private static boolean removeNoMergeReads = false;
 	
+	private static boolean parallel = false; //use parallel streams or not
+	private static int splitBatchSize = 2048; //batch size when using ReadSpliterator
+	
 	private static boolean simReversed = false;
 	private static boolean simUMI = false;
 	private static int simReadLength = 100;
@@ -117,13 +123,13 @@ public class FastQParseMain {
 	private HashMap<String, String> sampleMapF = new HashMap<String, String>();
 	private ArrayList<String> sampleDNAF = new ArrayList<String>(); //names saved twice to keep them in order
 	private ArrayList<String> sampleDNAR = new ArrayList<String>();
-	private long totalDNAProcessed = 0L; //total DNA read
+	private LongAdder totalDNAProcessed = new LongAdder(); //total DNA read
 	private long duplicatesRemoved = 0L; //total duplicates removed
-	private long undeterminedDNA = 0L; //total undetermined DNA
-	private long totalRemovedAdapters = 0L; //total DNA with adapters removed
-	private long totalQualityTrimmed = 0L; //total DNA that has been quality trimmed
-	private long baseCount = 0L; //total base count
-	private long totalReadsMerged = 0L; //total number of reads that are actually merged
+	private LongAdder undeterminedDNA = new LongAdder(); //total undetermined DNA
+	private LongAdder totalRemovedAdapters = new LongAdder(); //total DNA with adapters removed
+	private LongAdder totalQualityTrimmed = new LongAdder(); //total DNA that has been quality trimmed
+	private LongAdder baseCount = new LongAdder(); //total base count
+	private LongAdder totalReadsMerged = new LongAdder(); //total number of reads that are actually merged
 	private String enzymeF; //sample file enzyme name
 	private String enzymeR;
 	private boolean hasReversedBarcode = false;
@@ -228,6 +234,9 @@ public class FastQParseMain {
 			logWriter.println("Remove Reads That Are Not Quality Trimmed: " + removeUntrimmedReads);
 			logWriter.println("Remove Reads That Do Not Contain Any Adapters: " + removeNoAdapterReads);
 			logWriter.println("Remove Reads That Are Not Merged: " + removeNoMergeReads);
+			logWriter.println("Parallel: " + parallel);
+			logWriter.println("Parallel Batch Size: " + splitBatchSize);
+			logWriter.println("Useable Processors: " + Runtime.getRuntime().availableProcessors());
 			logWriter.println();
 			logWriter.println("Demultiplexing...");
 			logWriter.println();
@@ -277,7 +286,7 @@ public class FastQParseMain {
 			
 			//deduplicate after demultiplex
 			if(removeFirstDup || removeBestDup){ //assume that index files are provided for deduplicating for simpler logic
-				ArrayList<String> files = demultiplexFile(); //demultiplex
+				ConcurrentLinkedQueue<Strings> files = demultiplexFile(); //demultiplex
 				logWriter.println();
 				logWriter.println("Demultiplex Completed.");
 				logWriter.println();
@@ -285,12 +294,12 @@ public class FastQParseMain {
 				logWriter.println();
 				logWriter.println("Deduplicating...");
 				logWriter.flush();
-				for(int i = 0; i < files.size(); i += inputFile2 == null ? 2 : 4){
-					File file1 = new File(files.get(i));
+				for(Strings str : files){
+					File file1 = new File(str.get(0));
 					int pos = file1.getName().indexOf(".");
 					String justName1 = pos > 0 ? file1.getName().substring(0, pos) : file1.getName();
 					
-					File file2 = new File(files.get(i + 1));
+					File file2 = new File(str.get(1));
 					pos = file2.getName().indexOf(".");
 					String justName2 = pos > 0 ? file2.getName().substring(0, pos) : file2.getName();
 					
@@ -298,7 +307,7 @@ public class FastQParseMain {
 					logWriter.println("Deduplicating File: " + justName1);
 					logWriter.flush();
 					//deduplicate
-					long removed = deduplicate(files.get(i), inputFile2 == null ? null : files.get(i + 2), files.get(i + 1), inputFile2 == null ? null : files.get(i + 3),
+					long removed = deduplicate(str.get(0), inputFile2 == null ? null : str.get(2), str.get(1), inputFile2 == null ? null : str.get(3),
 							outputDir, false, false, outputDir + "dup" + File.separatorChar + justName1 + "_dup.fastq.gz", outputDir + "dup" + File.separatorChar + justName2 + "_dup.fastq.gz");
 					for(int j = 0; j < sampleDNAF.size(); j++){ //calculate duduplicated reads count
 						if(justName1.contains(sampleMapF.get(sampleDNAF.get(j)))){
@@ -308,9 +317,9 @@ public class FastQParseMain {
 							break;
 						}
 					}
+					generatedSampleFiles += str.size();
 					System.gc();
 				}
-				generatedSampleFiles = files.size();
 				if(generatedUndeterminedFile)
 					generatedSampleFiles += (inputFile2 == null ? 1 : 2) + (indexFile == null ? 0 : (inputFile2 == null ? 1 : 2));
 				logWriter.println();
@@ -321,7 +330,9 @@ public class FastQParseMain {
 						UtilMethods.deleteFolder(tempFile);
 				}
 			}else{ //no deduplicating after demultiplex
-				generatedSampleFiles = demultiplexFile().size(); //demultiplex
+				ConcurrentLinkedQueue<Strings> files = demultiplexFile(); //demultiplex
+				for(Strings str : files)
+					generatedSampleFiles += str.size();
 				if(generatedUndeterminedFile)
 					generatedSampleFiles += (inputFile2 == null ? 1 : 2) + (indexFile == null ? 0 : (inputFile2 == null ? 1 : 2));
 				logWriter.println();
@@ -334,8 +345,8 @@ public class FastQParseMain {
 			logWriter.println();
 			logWriter.println("Total Run Time: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 			logWriter.println();
-			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed * 4));
-			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed));
+			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum() * 4));
+			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
 			logWriter.println("Number of Generated Sample Files: " + generatedSampleFiles);
 			logWriter.println("Number of Generated Duplicate Files: " + generatedDupFiles);
 			
@@ -344,17 +355,17 @@ public class FastQParseMain {
 			map.put(Stat.SEQUENCE_FORWARDS, "");
 			if(hasReversedBarcode)
 				map.put(Stat.SEQUENCE_REVERSED, "");
-			map.put(Stat.SEQUENCE_COUNT, DECIMAL_FORMAT.format(totalDNAProcessed));
+			map.put(Stat.SEQUENCE_COUNT, DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
 			map.put(Stat.SEQUENCE_PERCENT, DECIMAL_FORMAT.format(1));
-			map.put(Stat.MERGED_COUNT, DECIMAL_FORMAT.format(totalReadsMerged));
-			map.put(Stat.MERGED_PERCENT, DECIMAL_FORMAT.format((double)totalReadsMerged / (double)totalDNAProcessed));
+			map.put(Stat.MERGED_COUNT, DECIMAL_FORMAT.format(totalReadsMerged.sum()));
+			map.put(Stat.MERGED_PERCENT, DECIMAL_FORMAT.format((double)totalReadsMerged.sum() / (double)totalDNAProcessed.sum()));
 			map.put(Stat.DEDUP_COUNT, DECIMAL_FORMAT.format(duplicatesRemoved));
-			map.put(Stat.DEDUP_PERCENT, DECIMAL_FORMAT.format((double)duplicatesRemoved / (double)totalDNAProcessed));
-			map.put(Stat.REMOVEADAPTER_COUNT, DECIMAL_FORMAT.format(totalRemovedAdapters));
-			map.put(Stat.REMOVEADAPTER_PERCENT, DECIMAL_FORMAT.format((double)totalRemovedAdapters / (double)totalDNAProcessed));
-			map.put(Stat.QUALITYTRIM_COUNT, DECIMAL_FORMAT.format(totalQualityTrimmed));
-			map.put(Stat.QUALITYTRIM_PERCENT, DECIMAL_FORMAT.format((double)totalQualityTrimmed / (double)totalDNAProcessed));
-			map.put(Stat.BASE_COUNT, DECIMAL_FORMAT.format(baseCount));
+			map.put(Stat.DEDUP_PERCENT, DECIMAL_FORMAT.format((double)duplicatesRemoved / (double)totalDNAProcessed.sum()));
+			map.put(Stat.REMOVEADAPTER_COUNT, DECIMAL_FORMAT.format(totalRemovedAdapters.sum()));
+			map.put(Stat.REMOVEADAPTER_PERCENT, DECIMAL_FORMAT.format((double)totalRemovedAdapters.sum() / (double)totalDNAProcessed.sum()));
+			map.put(Stat.QUALITYTRIM_COUNT, DECIMAL_FORMAT.format(totalQualityTrimmed.sum()));
+			map.put(Stat.QUALITYTRIM_PERCENT, DECIMAL_FORMAT.format((double)totalQualityTrimmed.sum() / (double)totalDNAProcessed.sum()));
+			map.put(Stat.BASE_COUNT, DECIMAL_FORMAT.format(baseCount.sum()));
 			map.put(Stat.BASE_PERCENT, DECIMAL_FORMAT.format(1));
 			stats.put("Total", map);
 			
@@ -433,11 +444,11 @@ public class FastQParseMain {
 			logWriter.println();
 			logWriter.println("Total Run Time: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 			logWriter.println();
-			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed * 4));
-			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed));
+			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum() * 4));
+			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
 			logWriter.println("Deduplicated Count: " + DECIMAL_FORMAT.format(duplicatesRemoved));
-			logWriter.println("% Deduplicated: " + DECIMAL_FORMAT.format((double)duplicatesRemoved / (double)totalDNAProcessed));
-			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount));
+			logWriter.println("% Deduplicated: " + DECIMAL_FORMAT.format((double)duplicatesRemoved / (double)totalDNAProcessed.sum()));
+			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount.sum()));
 		}else if(mode == Mode.PAIRMERGE){
 			logWriter.println("Forwards Read File: " + inputFile.getAbsolutePath());
 			logWriter.println("Reversed Read File: " + inputFile2.getAbsolutePath());
@@ -453,6 +464,9 @@ public class FastQParseMain {
 			logWriter.println("Interval to Print Duplicate Reads: " + DECIMAL_FORMAT.format(printDuplicateInterval));
 			logWriter.println("Use Wildcard Characters: " + wildcard);
 			logWriter.println("Remove Reads That Are Not Merged: " + removeNoMergeReads);
+			logWriter.println("Parallel: " + parallel);
+			logWriter.println("Parallel Batch Size: " + splitBatchSize);
+			logWriter.println("Useable Processors: " + Runtime.getRuntime().availableProcessors());
 			logWriter.println();
 			logWriter.println("Merging Pairs...");
 			logWriter.println();
@@ -466,13 +480,13 @@ public class FastQParseMain {
 			logWriter.println();
 			logWriter.println("Total Run Time: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 			logWriter.println();
-			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed * 4));
-			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed));
-			logWriter.println("Number of Reads Merged: " + DECIMAL_FORMAT.format(totalReadsMerged));
-			logWriter.println("% Merged: " + DECIMAL_FORMAT.format((double)totalReadsMerged / (double)totalDNAProcessed));
-			logWriter.println("Number of Reads Removed: " + DECIMAL_FORMAT.format(undeterminedDNA));
-			logWriter.println("% Reads Removed: " + DECIMAL_FORMAT.format((double)undeterminedDNA / (double)totalDNAProcessed));
-			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount));
+			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum() * 4));
+			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
+			logWriter.println("Number of Reads Merged: " + DECIMAL_FORMAT.format(totalReadsMerged.sum()));
+			logWriter.println("% Merged: " + DECIMAL_FORMAT.format((double)totalReadsMerged.sum() / (double)totalDNAProcessed.sum()));
+			logWriter.println("Number of Reads Removed: " + DECIMAL_FORMAT.format(undeterminedDNA.sum()));
+			logWriter.println("% Reads Removed: " + DECIMAL_FORMAT.format((double)undeterminedDNA.sum() / (double)totalDNAProcessed.sum()));
+			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount.sum()));
 		}else if(mode == Mode.FILTER){
 			logWriter.println("Input File: " + inputFile.getAbsolutePath());
 			logWriter.println("Replace Original File: " + replaceOriginal);
@@ -512,6 +526,9 @@ public class FastQParseMain {
 			logWriter.println("Use Wildcard Characters: " + wildcard);
 			logWriter.println("Remove Reads That Are Not Quality Trimmed: " + removeUntrimmedReads);
 			logWriter.println("Remove Reads That Do Not Contain Any Adapters: " + removeNoAdapterReads);
+			logWriter.println("Parallel: " + parallel);
+			logWriter.println("Parallel Batch Size: " + splitBatchSize);
+			logWriter.println("Useable Processors: " + Runtime.getRuntime().availableProcessors());
 			logWriter.println();
 			logWriter.println("Filtering...");
 			logWriter.println();
@@ -525,15 +542,15 @@ public class FastQParseMain {
 			logWriter.println();
 			logWriter.println("Total Run Time: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 			logWriter.println();
-			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed * 4));
-			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed));
-			logWriter.println("Number of Reads With Removed Adapter: " + DECIMAL_FORMAT.format(totalRemovedAdapters));
-			logWriter.println("% Removed Adapter: " + DECIMAL_FORMAT.format((double)totalRemovedAdapters / (double)totalDNAProcessed));
-			logWriter.println("Number of Reads Quality Trimmed: " + DECIMAL_FORMAT.format(totalQualityTrimmed));
-			logWriter.println("% Quality Trimmed: " + DECIMAL_FORMAT.format((double)totalQualityTrimmed / (double)totalDNAProcessed));
-			logWriter.println("Number of Reads Removed: " + DECIMAL_FORMAT.format(undeterminedDNA));
-			logWriter.println("% Reads Removed: " + DECIMAL_FORMAT.format((double)undeterminedDNA / (double)totalDNAProcessed));
-			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount));
+			logWriter.println("Number of Lines Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum() * 4));
+			logWriter.println("Number of Reads Processed: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
+			logWriter.println("Number of Reads With Removed Adapter: " + DECIMAL_FORMAT.format(totalRemovedAdapters.sum()));
+			logWriter.println("% Removed Adapter: " + DECIMAL_FORMAT.format((double)totalRemovedAdapters.sum() / (double)totalDNAProcessed.sum()));
+			logWriter.println("Number of Reads Quality Trimmed: " + DECIMAL_FORMAT.format(totalQualityTrimmed.sum()));
+			logWriter.println("% Quality Trimmed: " + DECIMAL_FORMAT.format((double)totalQualityTrimmed.sum() / (double)totalDNAProcessed.sum()));
+			logWriter.println("Number of Reads Removed: " + DECIMAL_FORMAT.format(undeterminedDNA.sum()));
+			logWriter.println("% Reads Removed: " + DECIMAL_FORMAT.format((double)undeterminedDNA.sum() / (double)totalDNAProcessed.sum()));
+			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount.sum()));
 		}else if(mode == Mode.SIM_READS){
 			readSample();
 			if(simUMI)
@@ -811,7 +828,7 @@ public class FastQParseMain {
 		}
 	}
 	
-	private ArrayList<String> demultiplexFile() throws Exception{
+	private ConcurrentLinkedQueue<Strings> demultiplexFile() throws Exception{
 		BufferedReader reader1; //forwards input
 		BufferedReader reader2 = null; //reversed input
 		BufferedReader reader3 = null; //forwards index input
@@ -836,37 +853,28 @@ public class FastQParseMain {
 			}
 		}
 		BufferedWriter[] writers1 = new BufferedWriter[sampleMapF.size() + 1]; //forwards output
-		BufferedWriter[] writers2 = null; //reversed output
-		BufferedWriter[] writers3 = null; //forwards index output
-		BufferedWriter[] writers4 = null; //reversed index output
-		BufferedWriter undeterminedWriter1 = null; //for reversed undetermined reads
-		BufferedWriter undeterminedWriter2 = null; //for reversed undetermined index reads
-		if(indexFile != null)
-			writers3 = new BufferedWriter[sampleMapF.size() + 1];
-		if(!mergePairedEnds && inputFile2 != null){
-			writers2 = new BufferedWriter[sampleMapF.size()];
-			if(indexFile2 != null)
-				writers4 = new BufferedWriter[sampleMapF.size()];
-		}
-		ArrayList<String> files = new ArrayList<String>();
-		long[][] DNACounts = new long[sampleMapF.size() + 1][5];
+		BufferedWriter[] writers2 = !mergePairedEnds && inputFile2 != null ? new BufferedWriter[sampleMapF.size()] : null; //reversed output
+		BufferedWriter[] writers3 = indexFile != null ? new BufferedWriter[sampleMapF.size() + 1] : null; //forwards index output
+		BufferedWriter[] writers4 = !mergePairedEnds && inputFile2 != null && indexFile2 != null ? writers4 = new BufferedWriter[sampleMapF.size()] : null; //reversed index output
+		BufferedWriter[] undeterminedWriterR = !mergePairedEnds && inputFile2 != null ? undeterminedWriterR = new BufferedWriter[2] : null; //for reversed and reversed index undetermined reads
 		
-		String[] lines1 = new String[4];
-		String[] lines2 = new String[4];
-		String[] lines3 = new String[4];
-		String[] lines4 = new String[4];
-		while((lines1[0] = reader1.readLine()) != null && (lines1[1] = reader1.readLine()) != null &&
-				(lines1[2] = reader1.readLine()) != null && (lines1[3] = reader1.readLine()) != null &&
-				(inputFile2 == null || ((lines2[0] = reader2.readLine()) != null && (lines2[1] = reader2.readLine()) != null &&
-				(lines2[2] = reader2.readLine()) != null && (lines2[3] = reader2.readLine()) != null)) &&
-				(indexFile == null || ((lines3[0] = reader3.readLine()) != null && (lines3[1] = reader3.readLine()) != null &&
-				(lines3[2] = reader3.readLine()) != null && (lines3[3] = reader3.readLine()) != null)) &&
-				(indexFile2 == null || ((lines4[0] = reader4.readLine()) != null && (lines4[1] = reader4.readLine()) != null &&
-				(lines4[2] = reader4.readLine()) != null && (lines4[3] = reader4.readLine()) != null))){
-			totalDNAProcessed += inputFile2 == null ? 1 : 2;
-			baseCount += lines1[1].length() + (inputFile2 == null ? 0 : lines2[1].length());
+		ConcurrentLinkedQueue<Strings> files = new ConcurrentLinkedQueue<Strings>();
+		LongAdder[][] DNACounts = new LongAdder[sampleMapF.size() + 1][5];
+		for(int i = 0; i < DNACounts.length; i++){
+			for(int j = 0; j < DNACounts[i].length; j++){
+				DNACounts[i][j] = new LongAdder();
+			}
+		}
+		Object[] locks = new Object[sampleMapF.size() + 1];
+		for(int i = 0; i < locks.length; i++){
+			locks[i] = new Object();
+		}
+		
+		StreamSupport.stream(new ReadSpliterator<Read>(splitBatchSize, reader1, reader2, reader3, reader4), parallel).forEach((read) -> {
+			totalDNAProcessed.add(inputFile2 == null ? 1 : 2);
+			baseCount.add(read.readF[1].length() + (inputFile2 == null ? 0 : read.readR[1].length()));
 			boolean flag = false;
-			if(totalDNAProcessed % printProcessedInterval == 0){
+			if(!parallel && totalDNAProcessed.sum() % printProcessedInterval == 0){
 				logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed));
 				logWriter.println("Run Time So Far: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 				logWriter.println("Current Memory Usage (GB): " + DECIMAL_FORMAT.format(UtilMethods.currentMemoryUsage()));
@@ -874,18 +882,18 @@ public class FastQParseMain {
 			}
 			
 			//save the quality and sequence lines so the undetermined reads are not trimmed or anything
-			String tempF1 = lines1[1];
-			String tempF2 = lines1[3];
+			String tempF1 = read.readF[1];
+			String tempF2 = read.readF[3];
 			String tempR1 = null;
 			String tempR2 = null;
 			if(inputFile2 != null){
-				tempR1 = lines2[1];
-				tempR2 = lines2[3];
+				tempR1 = read.readR[1];
+				tempR2 = read.readR[3];
 			}
 			
 			//check the percentage of N
-			if(removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(lines1[1]) <= removeDNAWithNPercent && (inputFile2 == null || UtilMethods.percentN(lines2[1]) <= removeDNAWithNPercent)) ||
-					(removeDNAWithNPercent < 0.0 && UtilMethods.countN(lines1[1]) <= 0 && (inputFile2 == null || UtilMethods.countN(lines2[1]) <= 0))){
+			if(removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(read.readF[1]) <= removeDNAWithNPercent && (inputFile2 == null || UtilMethods.percentN(read.readR[1]) <= removeDNAWithNPercent)) ||
+					(removeDNAWithNPercent < 0.0 && UtilMethods.countN(read.readF[1]) <= 0 && (inputFile2 == null || UtilMethods.countN(read.readR[1]) <= 0))){
 				int barcodeIndex = -1;
 				int barcodeEnd = -1;
 				int enzymeEnd = -1;
@@ -895,25 +903,25 @@ public class FastQParseMain {
 				int barcodeMatchCount = 0;
 				if(indexFile == null){ //check for enzyme and barcode in forwards reads
 					for(int i = 0; i < sampleDNAF.size(); i++){
-						ArrayList<Match> matches = UtilMethods.searchWithN(UtilMethods.reverse(lines1[1].substring(0, Math.min(lines1[1].length(), maxOffsetB + sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(sampleDNAF.get(i)), editMaxB, maxOffsetB, allowIndelsB, false, minOverlapB, wildcard);
+						ArrayList<Match> matches = UtilMethods.searchWithN(UtilMethods.reverse(read.readF[1].substring(0, Math.min(read.readF[1].length(), maxOffsetB + sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(sampleDNAF.get(i)), editMaxB, maxOffsetB, allowIndelsB, false, minOverlapB, wildcard);
 						boolean isMatch = false;
 						for(int j = 0; j < matches.size(); j++){
-							matches.get(j).start = Math.min(lines1[1].length(), maxOffsetB + sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)) - matches.get(j).start;
+							matches.get(j).start = Math.min(read.readF[1].length(), maxOffsetB + sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)) - matches.get(j).start;
 							for(int k = 0; k < constEnzymesF.size(); k++){
-								ArrayList<Match> enzymeMatches = UtilMethods.searchWithN(UtilMethods.reverse(lines1[1].substring(matches.get(j).start/* + randUMILength*/, Math.min(lines1[1].length(), maxOffsetB + matches.get(j).start + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesF.get(k).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(constEnzymesF.get(k)), editMaxB, maxOffsetB, allowIndelsB, true, Integer.MAX_VALUE, wildcard);
+								ArrayList<Match> enzymeMatches = UtilMethods.searchWithN(UtilMethods.reverse(read.readF[1].substring(matches.get(j).start/* + randUMILength*/, Math.min(read.readF[1].length(), maxOffsetB + matches.get(j).start + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesF.get(k).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(constEnzymesF.get(k)), editMaxB, maxOffsetB, allowIndelsB, true, Integer.MAX_VALUE, wildcard);
 								if(!enzymeMatches.isEmpty()){
-									enzymeMatches.get(enzymeMatches.size() - 1).start = Math.min(lines1[1].length(), maxOffsetB + matches.get(j).start + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesF.get(k).length()) : (int)editMaxB) : 0)) - enzymeMatches.get(enzymeMatches.size() - 1).start;
+									enzymeMatches.get(enzymeMatches.size() - 1).start = Math.min(read.readF[1].length(), maxOffsetB + matches.get(j).start + /*randUMILength + */constEnzymesF.get(k).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesF.get(k).length()) : (int)editMaxB) : 0)) - enzymeMatches.get(enzymeMatches.size() - 1).start;
 									int tempBarcodeEnd2 = -1;
 									int tempEnzymeEnd2 = -1;
 									if(inputFile2 != null && checkReversedReads){
 										int minEdit2 = Integer.MAX_VALUE;
-										ArrayList<Match> rMatches = UtilMethods.searchWithN(UtilMethods.reverse(lines2[1].substring(0, Math.min(lines2[1].length(), maxOffsetB + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0)))), hasReversedBarcode ? UtilMethods.reverse(sampleDNAR.get(i)) : UtilMethods.reverseComplement(sampleDNAF.get(i)), editMaxB, maxOffsetB, allowIndelsB, false, minOverlapB, wildcard);
+										ArrayList<Match> rMatches = UtilMethods.searchWithN(UtilMethods.reverse(read.readR[1].substring(0, Math.min(read.readR[1].length(), maxOffsetB + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0)))), hasReversedBarcode ? UtilMethods.reverse(sampleDNAR.get(i)) : UtilMethods.reverseComplement(sampleDNAF.get(i)), editMaxB, maxOffsetB, allowIndelsB, false, minOverlapB, wildcard);
 										for(int ri = 0; ri < rMatches.size(); ri++){
-											rMatches.get(ri).start = Math.min(lines2[1].length(), maxOffsetB + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0)) - rMatches.get(ri).start;
+											rMatches.get(ri).start = Math.min(read.readR[1].length(), maxOffsetB + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0)) - rMatches.get(ri).start;
 											for(int rj = 0; rj < constEnzymesR.size(); rj++){
-												ArrayList<Match> rEnzymeMatches = UtilMethods.searchWithN(UtilMethods.reverse(lines2[1].substring(rMatches.get(ri).start/* + randUMILength*/, Math.min(lines2[1].length(), maxOffsetB + rMatches.get(ri).start + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(constEnzymesR.get(rj)), editMaxB, maxOffsetB, allowIndelsB, true, Integer.MAX_VALUE, wildcard);
+												ArrayList<Match> rEnzymeMatches = UtilMethods.searchWithN(UtilMethods.reverse(read.readR[1].substring(rMatches.get(ri).start/* + randUMILength*/, Math.min(read.readR[1].length(), maxOffsetB + rMatches.get(ri).start + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(constEnzymesR.get(rj)), editMaxB, maxOffsetB, allowIndelsB, true, Integer.MAX_VALUE, wildcard);
 												if(!rEnzymeMatches.isEmpty()){
-													rEnzymeMatches.get(rEnzymeMatches.size() - 1).start = Math.min(lines2[1].length(), maxOffsetB + rMatches.get(ri).start + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0)) - rEnzymeMatches.get(rEnzymeMatches.size() - 1).start;
+													rEnzymeMatches.get(rEnzymeMatches.size() - 1).start = Math.min(read.readR[1].length(), maxOffsetB + rMatches.get(ri).start + /*randUMILength + */constEnzymesR.get(rj).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0)) - rEnzymeMatches.get(rEnzymeMatches.size() - 1).start;
 													if(rMatches.get(ri).edits <= minEdit2 && (rMatches.get(ri).edits < minEdit2 || rMatches.get(ri).start > tempBarcodeEnd2)){
 														tempBarcodeEnd2 = rMatches.get(ri).start;
 														tempEnzymeEnd2 = rEnzymeMatches.get(rEnzymeMatches.size() - 1).start;
@@ -936,8 +944,8 @@ public class FastQParseMain {
 													barcodeEnd2 = tempBarcodeEnd2;
 													enzymeEnd2 = tempEnzymeEnd2;
 												}else{
-													barcodeEnd2 = Math.max(0, Math.min(lines2[1].length(), barcodeEnd/* - randUMILength*/));
-													enzymeEnd2 = Math.max(0, Math.min(lines2[1].length(), enzymeEnd/* - randUMILength*/));
+													barcodeEnd2 = Math.max(0, Math.min(read.readR[1].length(), barcodeEnd/* - randUMILength*/));
+													enzymeEnd2 = Math.max(0, Math.min(read.readR[1].length(), enzymeEnd/* - randUMILength*/));
 												}
 											}
 											minEdit = matches.get(j).edits;
@@ -957,12 +965,12 @@ public class FastQParseMain {
 					}
 				}else{ //check for barcode in index reads
 					for(int i = 0; i < sampleDNAF.size(); i++){
-						ArrayList<Match> matches = UtilMethods.searchWithN(UtilMethods.reverse(lines3[1].substring(0, Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(sampleDNAF.get(i)), editMaxB, 0, allowIndelsB, true, minOverlapB, wildcard);
+						ArrayList<Match> matches = UtilMethods.searchWithN(UtilMethods.reverse(read.readIF[1].substring(0, Math.min(read.readIF[1].length(), sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)))), UtilMethods.reverse(sampleDNAF.get(i)), editMaxB, 0, allowIndelsB, true, minOverlapB, wildcard);
 						if(!matches.isEmpty()){
-							matches.get(matches.size() - 1).start = Math.min(lines3[1].length(), sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)) - matches.get(matches.size() - 1).start;
+							matches.get(matches.size() - 1).start = Math.min(read.readIF[1].length(), sampleDNAF.get(i).length() + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * sampleDNAF.get(i).length()) : (int)editMaxB) : 0)) - matches.get(matches.size() - 1).start;
 							ArrayList<Match> rMatches = null;
 							if(inputFile2 != null && checkReversedReads){
-								rMatches = UtilMethods.searchWithN(UtilMethods.reverse(lines4[1].substring(randUMILength, Math.min(lines4[1].length(), randUMILength + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0)))),
+								rMatches = UtilMethods.searchWithN(UtilMethods.reverse(read.readIR[1].substring(randUMILength, Math.min(read.readIR[1].length(), randUMILength + (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length()) + (allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * (hasReversedBarcode ? sampleDNAR.get(i).length() : sampleDNAF.get(i).length())) : (int)editMaxB) : 0)))),
 										hasReversedBarcode ? UtilMethods.reverse(sampleDNAR.get(i)) : UtilMethods.reverseComplement(sampleDNAF.get(i)), editMaxB, 0, allowIndelsB, true, Integer.MAX_VALUE, wildcard);
 							}
 							if((inputFile2 == null || !checkReversedReads || !rMatches.isEmpty()) && matches.get(matches.size() - 1).edits <= minEdit && (matches.get(matches.size() - 1).edits < minEdit || matches.get(matches.size() - 1).start > barcodeEnd)){
@@ -983,9 +991,9 @@ public class FastQParseMain {
 					//check if the quality is good enough
 					boolean qualityAcceptable;
 					if(filterAlgorithm){
-						qualityAcceptable = UtilMethods.toError(lines1[3], 0) <= qualityFilter && (inputFile2 == null || UtilMethods.toError(lines2[3], 0) <= qualityFilter);
+						qualityAcceptable = UtilMethods.toError(read.readF[3], 0) <= qualityFilter && (inputFile2 == null || UtilMethods.toError(read.readR[3], 0) <= qualityFilter);
 					}else{
-						qualityAcceptable = UtilMethods.toQScore(lines1[3], 0) >= qualityFilter && (inputFile2 == null || UtilMethods.toQScore(lines2[3], 0) >= qualityFilter);
+						qualityAcceptable = UtilMethods.toQScore(read.readF[3], 0) >= qualityFilter && (inputFile2 == null || UtilMethods.toQScore(read.readR[3], 0) >= qualityFilter);
 					}
 					
 					if(qualityAcceptable){
@@ -998,41 +1006,41 @@ public class FastQParseMain {
 						//remove barcode and enzyme
 						if(indexFile == null){
 							if(removeEnzyme && removeBarRand){
-								newSequence1 = lines1[1].substring(enzymeEnd);
-								newQuality1 = lines1[3].substring(enzymeEnd);
+								newSequence1 = read.readF[1].substring(enzymeEnd);
+								newQuality1 = read.readF[3].substring(enzymeEnd);
 							}else if(removeEnzyme){
-								newSequence1 = lines1[1].substring(0, barcodeEnd/* + randUMILength*/) + lines1[1].substring(enzymeEnd);
-								newQuality1 = lines1[3].substring(0, barcodeEnd/* + randUMILength*/) + lines1[3].substring(enzymeEnd);
+								newSequence1 = read.readF[1].substring(0, barcodeEnd/* + randUMILength*/) + read.readF[1].substring(enzymeEnd);
+								newQuality1 = read.readF[3].substring(0, barcodeEnd/* + randUMILength*/) + read.readF[3].substring(enzymeEnd);
 							}else if(removeBarRand){
-								newSequence1 = lines1[1].substring(barcodeEnd/* + randUMILength*/);
-								newQuality1 = lines1[3].substring(barcodeEnd/* + randUMILength*/);
+								newSequence1 = read.readF[1].substring(barcodeEnd/* + randUMILength*/);
+								newQuality1 = read.readF[3].substring(barcodeEnd/* + randUMILength*/);
 							}else{
-								newSequence1 = lines1[1];
-								newQuality1 = lines1[3];
+								newSequence1 = read.readF[1];
+								newQuality1 = read.readF[3];
 							}
 						}else{
-							newSequence1 = lines1[1];
-							newQuality1 = lines1[3];
+							newSequence1 = read.readF[1];
+							newQuality1 = read.readF[3];
 						}
 						
 						if(inputFile2 != null){
 							if(indexFile2 == null){
 								if(removeEnzyme && removeBarRand){
-									newSequence2 = lines2[1].substring(enzymeEnd2);
-									newQuality2 = lines2[3].substring(enzymeEnd2);
+									newSequence2 = read.readR[1].substring(enzymeEnd2);
+									newQuality2 = read.readR[3].substring(enzymeEnd2);
 								}else if(removeEnzyme){
-									newSequence2 = lines2[1].substring(0, barcodeEnd2) + lines2[1].substring(enzymeEnd2);
-									newQuality2 = lines2[3].substring(0, barcodeEnd2) + lines2[3].substring(enzymeEnd2);
+									newSequence2 = read.readR[1].substring(0, barcodeEnd2) + read.readR[1].substring(enzymeEnd2);
+									newQuality2 = read.readR[3].substring(0, barcodeEnd2) + read.readR[3].substring(enzymeEnd2);
 								}else if(removeBarRand){
-									newSequence2 = lines2[1].substring(barcodeEnd2);
-									newQuality2 = lines2[3].substring(barcodeEnd2);
+									newSequence2 = read.readR[1].substring(barcodeEnd2);
+									newQuality2 = read.readR[3].substring(barcodeEnd2);
 								}else{
-									newSequence2 = lines2[1];
-									newQuality2 = lines2[3];
+									newSequence2 = read.readR[1];
+									newQuality2 = read.readR[3];
 								}
 							}else{
-								newSequence2 = lines2[1];
-								newQuality2 = lines2[3];
+								newSequence2 = read.readR[1];
+								newQuality2 = read.readR[3];
 							}
 						}
 						
@@ -1103,91 +1111,100 @@ public class FastQParseMain {
 						//check if reads are trimmed and if length is too long or short
 						if((!removeUntrimmedReads || trimmedQuality == (inputFile2 == null ? 1 : 2)) && (!removeNoAdapterReads || removedAdapter == (inputFile2 == null ? 1 : 2)) && (!removeNoMergeReads || mergedReads) &&
 								minLength <= newSequence1.length() && newSequence1.length() <= maxLength && (inputFile2 == null || mergePairedEnds || (minLength <= newSequence2.length() && newSequence2.length() <= maxLength))){
-							if(writers1[barcodeIndex] == null){
-								if(!outputGZIP && !removeFirstDup && !removeBestDup){
-									writers1[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq"), BUFFER_SIZE);
-									files.add(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq");
-									if(indexFile != null){
-										writers3[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq"), BUFFER_SIZE);
-										files.add(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq");
-									}
-								}else{
-									writers1[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-									files.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz");
-									if(indexFile != null){
-										writers3[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-										files.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz");
-									}
-								}
-							}
-							if(!mergePairedEnds && inputFile2 != null && writers2[barcodeIndex] == null){
-								if(!outputGZIP && !removeFirstDup && !removeBestDup){
-									writers2[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq"), BUFFER_SIZE);
-									files.add(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq");
-									if(indexFile2 != null){
-										writers4[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq"), BUFFER_SIZE);
-										files.add(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq");
-									}
-								}else{
-									writers2[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-									files.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz");
-									if(indexFile2 != null){
-										writers4[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-										files.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz");
-									}
-								}
-							}
-							
 							//statistics
-							DNACounts[barcodeIndex][0] += inputFile2 == null ? 1 : 2;
-							DNACounts[barcodeIndex][1] += lines1[1].length() + (inputFile2 == null ? 0 : lines2[1].length());
-							DNACounts[barcodeIndex][3] += removedAdapter;
-							totalRemovedAdapters += removedAdapter;
-							DNACounts[barcodeIndex][2] += mergedReads ? 2 : 0;
-							totalReadsMerged += mergedReads ? 2 : 0;
-							DNACounts[barcodeIndex][4] += trimmedQuality;
-							totalQualityTrimmed += trimmedQuality;
+							DNACounts[barcodeIndex][0].add(inputFile2 == null ? 1 : 2);
+							DNACounts[barcodeIndex][1].add(read.readF[1].length() + (inputFile2 == null ? 0 : read.readR[1].length()));
+							DNACounts[barcodeIndex][3].add(removedAdapter);
+							totalRemovedAdapters.add(removedAdapter);
+							DNACounts[barcodeIndex][2].add(mergedReads ? 2 : 0);
+							totalReadsMerged.add(mergedReads ? 2 : 0);
+							DNACounts[barcodeIndex][4].add(trimmedQuality);
+							totalQualityTrimmed.add(trimmedQuality);
 							
-							//print to the whatever file the read belongs to
-							writers1[barcodeIndex].write(lines1[0]);
-							writers1[barcodeIndex].newLine();
-							writers1[barcodeIndex].write(newSequence1);
-							writers1[barcodeIndex].newLine();
-							writers1[barcodeIndex].write(description2);
-							writers1[barcodeIndex].newLine();
-							writers1[barcodeIndex].write(newQuality1);
-							writers1[barcodeIndex].newLine();
-							
-							if(indexFile != null){
-								writers3[barcodeIndex].write(lines3[0]);
-								writers3[barcodeIndex].newLine();
-								writers3[barcodeIndex].write(lines3[1]);
-								writers3[barcodeIndex].newLine();
-								writers3[barcodeIndex].write(description2);
-								writers3[barcodeIndex].newLine();
-								writers3[barcodeIndex].write(lines3[3]);
-								writers3[barcodeIndex].newLine();
-							}
-							
-							if(!mergePairedEnds && inputFile2 != null){
-								writers2[barcodeIndex].write(lines2[0]);
-								writers2[barcodeIndex].newLine();
-								writers2[barcodeIndex].write(newSequence2);
-								writers2[barcodeIndex].newLine();
-								writers2[barcodeIndex].write(description2);
-								writers2[barcodeIndex].newLine();
-								writers2[barcodeIndex].write(newQuality2);
-								writers2[barcodeIndex].newLine();
-								
-								if(indexFile2 != null){
-									writers4[barcodeIndex].write(lines4[0]);
-									writers4[barcodeIndex].newLine();
-									writers4[barcodeIndex].write(lines4[1]);
-									writers4[barcodeIndex].newLine();
-									writers4[barcodeIndex].write(description2);
-									writers4[barcodeIndex].newLine();
-									writers4[barcodeIndex].write(lines4[3]);
-									writers4[barcodeIndex].newLine();
+							synchronized(locks[barcodeIndex]){
+								try{
+									Strings strings = new Strings();
+									if(writers1[barcodeIndex] == null){
+										if(!outputGZIP && !removeFirstDup && !removeBestDup){
+											writers1[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq"), BUFFER_SIZE);
+											strings.add(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq");
+											if(indexFile != null){
+												writers3[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq"), BUFFER_SIZE);
+												strings.add(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq");
+											}
+										}else{
+											writers1[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+											strings.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz");
+											if(indexFile != null){
+												writers3[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+												strings.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R1.fastq.gz");
+											}
+										}
+									}
+									if(!mergePairedEnds && inputFile2 != null && writers2[barcodeIndex] == null){
+										if(!outputGZIP && !removeFirstDup && !removeBestDup){
+											writers2[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq"), BUFFER_SIZE);
+											strings.add(outputDir + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq");
+											if(indexFile2 != null){
+												writers4[barcodeIndex] = new BufferedWriter(new FileWriter(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq"), BUFFER_SIZE);
+												strings.add(outputDir + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq");
+											}
+										}else{
+											writers2[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+											strings.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "sample_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz");
+											if(indexFile2 != null){
+												writers4[barcodeIndex] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+												strings.add(((removeFirstDup || removeBestDup) ? (outputDir + "temp" + File.separatorChar) : outputDir) + "index_" + sampleMapF.get(sampleDNAF.get(barcodeIndex)) + "_R2.fastq.gz");
+											}
+										}
+									}
+									if(strings.size() > 0)
+										files.offer(strings);
+									
+									//print to the whatever file the read belongs to
+									writers1[barcodeIndex].write(read.readF[0]);
+									writers1[barcodeIndex].newLine();
+									writers1[barcodeIndex].write(newSequence1);
+									writers1[barcodeIndex].newLine();
+									writers1[barcodeIndex].write(description2);
+									writers1[barcodeIndex].newLine();
+									writers1[barcodeIndex].write(newQuality1);
+									writers1[barcodeIndex].newLine();
+									
+									if(indexFile != null){
+										writers3[barcodeIndex].write(read.readIF[0]);
+										writers3[barcodeIndex].newLine();
+										writers3[barcodeIndex].write(read.readIF[1]);
+										writers3[barcodeIndex].newLine();
+										writers3[barcodeIndex].write(description2);
+										writers3[barcodeIndex].newLine();
+										writers3[barcodeIndex].write(read.readIF[3]);
+										writers3[barcodeIndex].newLine();
+									}
+									
+									if(!mergePairedEnds && inputFile2 != null){
+										writers2[barcodeIndex].write(read.readR[0]);
+										writers2[barcodeIndex].newLine();
+										writers2[barcodeIndex].write(newSequence2);
+										writers2[barcodeIndex].newLine();
+										writers2[barcodeIndex].write(description2);
+										writers2[barcodeIndex].newLine();
+										writers2[barcodeIndex].write(newQuality2);
+										writers2[barcodeIndex].newLine();
+										
+										if(indexFile2 != null){
+											writers4[barcodeIndex].write(read.readIR[0]);
+											writers4[barcodeIndex].newLine();
+											writers4[barcodeIndex].write(read.readIR[1]);
+											writers4[barcodeIndex].newLine();
+											writers4[barcodeIndex].write(description2);
+											writers4[barcodeIndex].newLine();
+											writers4[barcodeIndex].write(read.readIR[3]);
+											writers4[barcodeIndex].newLine();
+										}
+									}
+								}catch(Exception e){
+									UtilMethods.defaultExceptionHandler(logWriter, e);
 								}
 							}
 							flag = true;
@@ -1196,72 +1213,81 @@ public class FastQParseMain {
 				}
 			}
 			if(!flag){
-				if(writers1[writers1.length - 1] == null){ //initialize writer for the undetermined file if it has not already been initialized
-					if(outputGZIP){
-						writers1[writers1.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-						if(inputFile2 != null)
-							undeterminedWriter1 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-						if(indexFile != null){
-							writers3[writers3.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
-							if(inputFile2 != null)
-								undeterminedWriter2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+				//statistics
+				DNACounts[DNACounts.length - 1][0].add(inputFile2 == null ? 1 : 2);
+				DNACounts[DNACounts.length - 1][1].add(read.readF[1].length() + (inputFile2 == null ? 0 : read.readR[1].length()));
+				undeterminedDNA.add(inputFile2 == null ? 1 : 2);
+				
+				synchronized(locks[locks.length - 1]){
+					try{
+						if(writers1[writers1.length - 1] == null){ //initialize writer for the undetermined file if it has not already been initialized
+							if(outputGZIP){
+								writers1[writers1.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+								if(inputFile2 != null)
+									undeterminedWriterR[0] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "sample_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+								if(indexFile != null){
+									writers3[writers3.length - 1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R1.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+									if(inputFile2 != null)
+										undeterminedWriterR[1] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "index_undetermined_R2.fastq.gz"), BUFFER_SIZE_GZIP)), BUFFER_SIZE);
+								}
+							}else{
+								writers1[writers1.length - 1] = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R1.fastq"), BUFFER_SIZE);
+								if(inputFile2 != null)
+									undeterminedWriterR[0] = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R2.fastq"), BUFFER_SIZE);
+								if(indexFile != null){
+									writers3[writers3.length - 1] = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R1.fastq"), BUFFER_SIZE);
+									if(inputFile2 != null)
+										undeterminedWriterR[1] = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R2.fastq"), BUFFER_SIZE);
+								}
+							}
+							generatedUndeterminedFile = true;
 						}
-					}else{
-						writers1[writers1.length - 1] = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R1.fastq"), BUFFER_SIZE);
-						if(inputFile2 != null)
-							undeterminedWriter1 = new BufferedWriter(new FileWriter(outputDir + "sample_undetermined_R2.fastq"), BUFFER_SIZE);
+						
+						//print to undetermined file
+						writers1[writers1.length - 1].write(read.readF[0]);
+						writers1[writers1.length - 1].newLine();
+						writers1[writers1.length - 1].write(tempF1);
+						writers1[writers1.length - 1].newLine();
+						writers1[writers1.length - 1].write(description2);
+						writers1[writers1.length - 1].newLine();
+						writers1[writers1.length - 1].write(tempF2);
+						writers1[writers1.length - 1].newLine();
 						if(indexFile != null){
-							writers3[writers3.length - 1] = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R1.fastq"), BUFFER_SIZE);
-							if(inputFile2 != null)
-								undeterminedWriter2 = new BufferedWriter(new FileWriter(outputDir + "index_undetermined_R2.fastq"), BUFFER_SIZE);
+							writers3[writers3.length - 1].write(read.readIF[0]);
+							writers3[writers3.length - 1].newLine();
+							writers3[writers3.length - 1].write(read.readIF[1]);
+							writers3[writers3.length - 1].newLine();
+							writers3[writers3.length - 1].write(description2);
+							writers3[writers3.length - 1].newLine();
+							writers3[writers3.length - 1].write(read.readIF[3]);
+							writers3[writers3.length - 1].newLine();
 						}
-					}
-					generatedUndeterminedFile = true;
-				}
-				DNACounts[DNACounts.length - 1][0] += inputFile2 == null ? 1 : 2;
-				DNACounts[DNACounts.length - 1][1] += lines1[1].length() + (inputFile2 == null ? 0 : lines2[1].length());
-				//print to undetermined file
-				writers1[writers1.length - 1].write(lines1[0]);
-				writers1[writers1.length - 1].newLine();
-				writers1[writers1.length - 1].write(tempF1);
-				writers1[writers1.length - 1].newLine();
-				writers1[writers1.length - 1].write(description2);
-				writers1[writers1.length - 1].newLine();
-				writers1[writers1.length - 1].write(tempF2);
-				writers1[writers1.length - 1].newLine();
-				if(indexFile != null){
-					writers3[writers3.length - 1].write(lines3[0]);
-					writers3[writers3.length - 1].newLine();
-					writers3[writers3.length - 1].write(lines3[1]);
-					writers3[writers3.length - 1].newLine();
-					writers3[writers3.length - 1].write(description2);
-					writers3[writers3.length - 1].newLine();
-					writers3[writers3.length - 1].write(lines3[3]);
-					writers3[writers3.length - 1].newLine();
-				}
-				if(inputFile2 != null){
-					undeterminedWriter1.write(lines2[0]);
-					undeterminedWriter1.newLine();
-					undeterminedWriter1.write(tempR1);
-					undeterminedWriter1.newLine();
-					undeterminedWriter1.write(description2);
-					undeterminedWriter1.newLine();
-					undeterminedWriter1.write(tempR2);
-					undeterminedWriter1.newLine();
-					if(indexFile2 != null){
-						undeterminedWriter2.write(lines4[0]);
-						undeterminedWriter2.newLine();
-						undeterminedWriter2.write(lines4[1]);
-						undeterminedWriter2.newLine();
-						undeterminedWriter2.write(description2);
-						undeterminedWriter2.newLine();
-						undeterminedWriter2.write(lines4[3]);
-						undeterminedWriter2.newLine();
+						if(inputFile2 != null){
+							undeterminedWriterR[0].write(read.readR[0]);
+							undeterminedWriterR[0].newLine();
+							undeterminedWriterR[0].write(tempR1);
+							undeterminedWriterR[0].newLine();
+							undeterminedWriterR[0].write(description2);
+							undeterminedWriterR[0].newLine();
+							undeterminedWriterR[0].write(tempR2);
+							undeterminedWriterR[0].newLine();
+							if(indexFile2 != null){
+								undeterminedWriterR[1].write(read.readIR[0]);
+								undeterminedWriterR[1].newLine();
+								undeterminedWriterR[1].write(read.readIR[1]);
+								undeterminedWriterR[1].newLine();
+								undeterminedWriterR[1].write(description2);
+								undeterminedWriterR[1].newLine();
+								undeterminedWriterR[1].write(read.readIR[3]);
+								undeterminedWriterR[1].newLine();
+							}
+						}
+					}catch(Exception e){
+						UtilMethods.defaultExceptionHandler(logWriter, e);
 					}
 				}
-				undeterminedDNA += inputFile2 == null ? 1 : 2;
 			}
-		}
+		});
 		
 		//close everything
 		reader1.close();
@@ -1275,12 +1301,12 @@ public class FastQParseMain {
 		}
 		if(inputFile2 != null){
 			reader2.close();
-			if(undeterminedWriter1 != null)
-				undeterminedWriter1.close();
+			if(undeterminedWriterR[0] != null)
+				undeterminedWriterR[0].close();
 			if(indexFile2 != null){
 				reader4.close();
-				if(undeterminedWriter2 != null)
-					undeterminedWriter2.close();
+				if(undeterminedWriterR[1] != null)
+					undeterminedWriterR[1].close();
 			}
 			if(!mergePairedEnds){
 				for(int i = 0; i < writers2.length; i++){
@@ -1295,21 +1321,21 @@ public class FastQParseMain {
 		//update stats
 		for(int i = 0; i < sampleDNAF.size(); i++){
 			EnumMap<Stat, String> map = stats.get(sampleMapF.get(sampleDNAF.get(i)));
-			map.put(Stat.SEQUENCE_COUNT, DECIMAL_FORMAT.format(DNACounts[i][0]));
-			map.put(Stat.SEQUENCE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][0] / (double)totalDNAProcessed));
-			map.put(Stat.MERGED_COUNT, DECIMAL_FORMAT.format(DNACounts[i][2]));
-			map.put(Stat.MERGED_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][2] / (double)totalDNAProcessed));
-			map.put(Stat.REMOVEADAPTER_COUNT, DECIMAL_FORMAT.format(DNACounts[i][3]));
-			map.put(Stat.REMOVEADAPTER_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][3] / (double)DNACounts[i][0]));
-			map.put(Stat.QUALITYTRIM_COUNT, DECIMAL_FORMAT.format(DNACounts[i][4]));
-			map.put(Stat.QUALITYTRIM_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][4] / (double)DNACounts[i][0]));
-			map.put(Stat.BASE_COUNT, DECIMAL_FORMAT.format(DNACounts[i][1]));
-			map.put(Stat.BASE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][1] / (double)baseCount));
+			map.put(Stat.SEQUENCE_COUNT, DECIMAL_FORMAT.format(DNACounts[i][0].sum()));
+			map.put(Stat.SEQUENCE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][0].sum() / (double)totalDNAProcessed.sum()));
+			map.put(Stat.MERGED_COUNT, DECIMAL_FORMAT.format(DNACounts[i][2].sum()));
+			map.put(Stat.MERGED_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][2].sum() / (double)totalDNAProcessed.sum()));
+			map.put(Stat.REMOVEADAPTER_COUNT, DECIMAL_FORMAT.format(DNACounts[i][3].sum()));
+			map.put(Stat.REMOVEADAPTER_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][3].sum() / (double)DNACounts[i][0].sum()));
+			map.put(Stat.QUALITYTRIM_COUNT, DECIMAL_FORMAT.format(DNACounts[i][4].sum()));
+			map.put(Stat.QUALITYTRIM_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][4].sum() / (double)DNACounts[i][0].sum()));
+			map.put(Stat.BASE_COUNT, DECIMAL_FORMAT.format(DNACounts[i][1].sum()));
+			map.put(Stat.BASE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[i][1].sum() / (double)baseCount.sum()));
 		}
-		stats.get("Undetermined").put(Stat.SEQUENCE_COUNT, DECIMAL_FORMAT.format(DNACounts[DNACounts.length - 1][0]));
-		stats.get("Undetermined").put(Stat.SEQUENCE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[DNACounts.length - 1][0] / (double)totalDNAProcessed));
-		stats.get("Undetermined").put(Stat.BASE_COUNT, DECIMAL_FORMAT.format(DNACounts[DNACounts.length - 1][1]));
-		stats.get("Undetermined").put(Stat.BASE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[DNACounts.length - 1][1] / (double)baseCount));
+		stats.get("Undetermined").put(Stat.SEQUENCE_COUNT, DECIMAL_FORMAT.format(DNACounts[DNACounts.length - 1][0].sum()));
+		stats.get("Undetermined").put(Stat.SEQUENCE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[DNACounts.length - 1][0].sum() / (double)totalDNAProcessed.sum()));
+		stats.get("Undetermined").put(Stat.BASE_COUNT, DECIMAL_FORMAT.format(DNACounts[DNACounts.length - 1][1].sum()));
+		stats.get("Undetermined").put(Stat.BASE_PERCENT, DECIMAL_FORMAT.format((double)DNACounts[DNACounts.length - 1][1].sum() / (double)baseCount.sum()));
 		
 		return files;
 	}
@@ -1405,10 +1431,10 @@ public class FastQParseMain {
 					(lines4[0] = reader4.readLine()) != null && (lines4[1] = reader4.readLine()) != null &&
 					(lines4[2] = reader4.readLine()) != null && (lines4[3] = reader4.readLine()) != null))){
 				if(standalone){
-					totalDNAProcessed += readPath2 == null ? 1 : 2;
-					baseCount += lines1[1].length() + (readPath2 == null ? 0 : lines2[1].length());
-					if(totalDNAProcessed % printProcessedInterval == 0){
-						logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed));
+					totalDNAProcessed.add(readPath2 == null ? 1 : 2);
+					baseCount.add(lines1[1].length() + (readPath2 == null ? 0 : lines2[1].length()));
+					if(!parallel && totalDNAProcessed.sum() % printProcessedInterval == 0){
+						logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
 						logWriter.println("Run Time So Far: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 						logWriter.println("Current Memory Usage (GB): " + DECIMAL_FORMAT.format(UtilMethods.currentMemoryUsage()));
 						logWriter.flush();
@@ -1526,7 +1552,7 @@ public class FastQParseMain {
 			BufferedWriter dupWriter1 = null;
 			BufferedWriter dupWriter2 = null;
 			
-			HashMap<BitSet, Read> map = new HashMap<BitSet, Read>();
+			HashMap<BitSet, CompressedRead> map = new HashMap<BitSet, CompressedRead>();
 			String[] lines1 = new String[4];
 			String[] lines2 = new String[4];
 			String[] lines3 = new String[4];
@@ -1540,10 +1566,10 @@ public class FastQParseMain {
 					(lines4[0] = reader4.readLine()) != null && (lines4[1] = reader4.readLine()) != null &&
 					(lines4[2] = reader4.readLine()) != null && (lines4[3] = reader4.readLine()) != null))){
 				if(standalone){
-					totalDNAProcessed += readPath2 == null ? 1 : 2;
-					baseCount += lines1[1].length() + (readPath2 == null ? 0 : lines2[1].length());
-					if(totalDNAProcessed % printProcessedInterval == 0){
-						logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed));
+					totalDNAProcessed.add(readPath2 == null ? 1 : 2);
+					baseCount.add(lines1[1].length() + (readPath2 == null ? 0 : lines2[1].length()));
+					if(!parallel && totalDNAProcessed.sum() % printProcessedInterval == 0){
+						logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
 						logWriter.println("Run Time So Far: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 						logWriter.println("Current Memory Usage (GB): " + DECIMAL_FORMAT.format(UtilMethods.currentMemoryUsage()));
 						logWriter.flush();
@@ -1562,7 +1588,7 @@ public class FastQParseMain {
 						logWriter.println("Current Memory Usage (GB): " + DECIMAL_FORMAT.format(UtilMethods.currentMemoryUsage()));
 						logWriter.flush();
 					}
-					Read other = map.get(key);
+					CompressedRead other = map.get(key);
 					if(other.error > currQuality){ //if current read quality is better
 						if(saveDup){
 							if(dupWriter1 == null){ //initialize writer for writing duplicates
@@ -1611,9 +1637,9 @@ public class FastQParseMain {
 						}
 						//save current read in HashMap
 						if(readPath2 == null)
-							map.put(key, new Read(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3]));
+							map.put(key, new CompressedRead(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3]));
 						else
-							map.put(key, new Read(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3], lines2[0], lines2[1], lines2[3], lines4[0], lines4[1], lines4[3]));
+							map.put(key, new CompressedRead(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3], lines2[0], lines2[1], lines2[3], lines4[0], lines4[1], lines4[3]));
 					}else{ //remove current read
 						if(saveDup){
 							if(dupWriter1 == null){
@@ -1662,9 +1688,9 @@ public class FastQParseMain {
 					}
 				}else{ //if the current UMI was not encountered before
 					if(readPath2 == null)
-						map.put(key, new Read(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3]));
+						map.put(key, new CompressedRead(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3]));
 					else
-						map.put(key, new Read(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3], lines2[0], lines2[1], lines2[3], lines4[0], lines4[1], lines4[3]));
+						map.put(key, new CompressedRead(currQuality, lines1[0], lines1[1], lines1[3], lines3[0], lines3[1], lines3[3], lines2[0], lines2[1], lines2[3], lines4[0], lines4[1], lines4[3]));
 				}
 			}
 			reader1.close();
@@ -1695,7 +1721,7 @@ public class FastQParseMain {
 			}
 			
 			//go through the best reads and print them
-			for(Read val : map.values()){
+			for(CompressedRead val : map.values()){
 				writer1.write(val.descriptionFRead);
 				writer1.newLine();
 				writer1.write(UtilMethods.toSequence(val.sequenceFRead));
@@ -1777,36 +1803,41 @@ public class FastQParseMain {
 			writer = new BufferedWriter(new FileWriter(outputDir + justName + "_pairmerged.fastq"), BUFFER_SIZE);
 		}
 		
-		String[] lines1 = new String[4];
-		String[] lines2 = new String[4];
-		while((lines1[0] = reader1.readLine()) != null && (lines1[1] = reader1.readLine()) != null &&
-				(lines1[2] = reader1.readLine()) != null && (lines1[3] = reader1.readLine()) != null &&
-				(lines2[0] = reader2.readLine()) != null && (lines2[1] = reader2.readLine()) != null &&
-				(lines2[2] = reader2.readLine()) != null && (lines2[3] = reader2.readLine()) != null){
-			totalDNAProcessed += 2;
-			baseCount += lines1[1].length() + lines2[1].length();
-			if(totalDNAProcessed % printProcessedInterval == 0){
-				logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed));
+		Object lock = new Object();
+		
+		StreamSupport.stream(new ReadSpliterator<Read>(splitBatchSize, reader1, reader2, null, null), parallel).forEach((read) -> {
+			totalDNAProcessed.add(2);
+			baseCount.add(read.readF[1].length() + read.readR[1].length());
+			if(!parallel && totalDNAProcessed.sum() % printProcessedInterval == 0){
+				logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
 				logWriter.println("Run Time So Far: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 				logWriter.println("Current Memory Usage (GB): " + DECIMAL_FORMAT.format(UtilMethods.currentMemoryUsage()));
 				logWriter.flush();
 			}
 			//merge the two lines
-			String[] merged = UtilMethods.mergeReads(lines1[1], lines1[3], lines2[1], lines2[3], editMaxM, mergeAlgorithm, wildcard);
-			if(!removeNoMergeReads || merged[0].length() != lines1[1].length() + lines2[1].length()){
-				totalReadsMerged += 2;
-				writer.write(lines1[0]);
-				writer.newLine();
-				writer.write(merged[0]);
-				writer.newLine();
-				writer.write(description2);
-				writer.newLine();
-				writer.write(merged[1]);
-				writer.newLine();
+			String[] merged = UtilMethods.mergeReads(read.readF[1], read.readF[3], read.readR[1], read.readR[3], editMaxM, mergeAlgorithm, wildcard);
+			if(!removeNoMergeReads || merged[0].length() != read.readF[1].length() + read.readR[1].length()){
+				totalReadsMerged.add(2);
+				
+				synchronized(lock){
+					try{
+						//print to file
+						writer.write(read.readF[0]);
+						writer.newLine();
+						writer.write(merged[0]);
+						writer.newLine();
+						writer.write(description2);
+						writer.newLine();
+						writer.write(merged[1]);
+						writer.newLine();
+					}catch(Exception e){
+						UtilMethods.defaultExceptionHandler(logWriter, e);
+					}
+				}
 			}else{
-				undeterminedDNA += 2;
+				undeterminedDNA.add(2);
 			}
-		}
+		});
 		
 		reader1.close();
 		reader2.close();
@@ -1832,13 +1863,13 @@ public class FastQParseMain {
 			outputFile = new File(outputDir + justName + "_filtered.fastq");
 		}
 		
-		String[] lines = new String[4];
-		while((lines[0] = reader.readLine()) != null && (lines[1] = reader.readLine()) != null &&
-				(lines[2] = reader.readLine()) != null && (lines[3] = reader.readLine()) != null){
-			totalDNAProcessed++;
-			baseCount += lines[1].length();
-			if(totalDNAProcessed % printProcessedInterval == 0){
-				logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed));
+		Object lock = new Object();
+		
+		StreamSupport.stream(new ReadSpliterator<Read>(splitBatchSize, reader, null, null, null), parallel).forEach((read) -> {
+			totalDNAProcessed.add(1);
+			baseCount.add(read.readF[1].length());
+			if(!parallel && totalDNAProcessed.sum() % printProcessedInterval == 0){
+				logWriter.println("Reads Processed So Far: " + DECIMAL_FORMAT.format(totalDNAProcessed.sum()));
 				logWriter.println("Run Time So Far: " + UtilMethods.formatElapsedTime(System.currentTimeMillis() - startTime));
 				logWriter.println("Current Memory Usage (GB): " + DECIMAL_FORMAT.format(UtilMethods.currentMemoryUsage()));
 				logWriter.flush();
@@ -1847,31 +1878,31 @@ public class FastQParseMain {
 			//check if quality is good enough
 			boolean qualityAcceptable;
 			if(filterAlgorithm){
-				qualityAcceptable = UtilMethods.toError(lines[3], 0) <= qualityFilter;
+				qualityAcceptable = UtilMethods.toError(read.readF[3], 0) <= qualityFilter;
 			}else{
-				qualityAcceptable = UtilMethods.toQScore(lines[3], 0) >= qualityFilter;
+				qualityAcceptable = UtilMethods.toQScore(read.readF[3], 0) >= qualityFilter;
 			}
-			if(qualityAcceptable && (removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(lines[1]) <= removeDNAWithNPercent) || (removeDNAWithNPercent < 0.0 && UtilMethods.countN(lines[1]) <= 0))){
+			if(qualityAcceptable && (removeDNAWithNPercent > 1.0 || (removeDNAWithNPercent >= 0.0 && UtilMethods.percentN(read.readF[1]) <= removeDNAWithNPercent) || (removeDNAWithNPercent < 0.0 && UtilMethods.countN(read.readF[1]) <= 0))){
 				String[] temp;
 				String[] qualityTrimmed;
 				
 				//trim 'N' bp
-				temp = UtilMethods.trimN(lines[1], lines[3], trimNPercent);
-				lines[1] = temp[0];
-				lines[3] = temp[1];
+				temp = UtilMethods.trimN(read.readF[1], read.readF[3], trimNPercent);
+				read.readF[1] = temp[0];
+				read.readF[3] = temp[1];
 				
 				int trimmedQuality = 0;
 				int removedAdapter = 0;
 				
 				//quality trim
 				if(trimAlgorithm){
-					temp = UtilMethods.qualityTrim2(lines[1], lines[3], qualityTrimQScore1, true, qualityTrimLength);
+					temp = UtilMethods.qualityTrim2(read.readF[1], read.readF[3], qualityTrimQScore1, true, qualityTrimLength);
 					qualityTrimmed = UtilMethods.qualityTrim2(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
 				}else{
-					temp = UtilMethods.qualityTrim1(lines[1], lines[3], qualityTrimQScore1, true, qualityTrimLength);
+					temp = UtilMethods.qualityTrim1(read.readF[1], read.readF[3], qualityTrimQScore1, true, qualityTrimLength);
 					qualityTrimmed = UtilMethods.qualityTrim1(temp[0], temp[1], qualityTrimQScore2, false, qualityTrimLength);
 				}
-				if(lines[1].length() != qualityTrimmed[0].length()){
+				if(read.readF[1].length() != qualityTrimmed[0].length()){
 					trimmedQuality++;
 				}
 				//remove adapters
@@ -1879,30 +1910,36 @@ public class FastQParseMain {
 				if(qualityTrimmed[0].length() != removedAdapters[0].length()){
 					removedAdapter++;
 				}
-				lines[1] = removedAdapters[0];
-				lines[3] = removedAdapters[1];
+				read.readF[1] = removedAdapters[0];
+				read.readF[3] = removedAdapters[1];
 				
 				if((!removeUntrimmedReads || trimmedQuality == 1) && (!removeNoAdapterReads || removedAdapter == 1) &&
-						lines[1].length() >= minLength && lines[1].length() <= maxLength){
-					totalQualityTrimmed += trimmedQuality;
-					totalRemovedAdapters += removedAdapter;
+						read.readF[1].length() >= minLength && read.readF[1].length() <= maxLength){
+					totalQualityTrimmed.add(trimmedQuality);
+					totalRemovedAdapters.add(removedAdapter);
 					
-					//print to file
-					writer.write(lines[0]);
-					writer.newLine();
-					writer.write(lines[1]);
-					writer.newLine();
-					writer.write(description2);
-					writer.newLine();
-					writer.write(lines[3]);
-					writer.newLine();
+					synchronized(lock){
+						try{
+							//print to file
+							writer.write(read.readF[0]);
+							writer.newLine();
+							writer.write(read.readF[1]);
+							writer.newLine();
+							writer.write(description2);
+							writer.newLine();
+							writer.write(read.readF[3]);
+							writer.newLine();
+						}catch(Exception e){
+							UtilMethods.defaultExceptionHandler(logWriter, e);
+						}
+					}
 				}else{
-					undeterminedDNA++;
+					undeterminedDNA.add(1);
 				}
 			}else{
-				undeterminedDNA++;
+				undeterminedDNA.add(1);
 			}
-		}
+		});
 		
 		reader.close();
 		writer.close();
@@ -2075,6 +2112,11 @@ public class FastQParseMain {
 					removeNoAdapterReads = true;
 				}else if(args[i].equals("-nM")){
 					removeNoMergeReads = true;
+				}else if(args[i].equals("-p")){
+					parallel = true;
+					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						splitBatchSize = Integer.parseInt(args[++i]);
+					}
 				}
 			}
 			boolean isDirClear = false;
@@ -2194,6 +2236,11 @@ public class FastQParseMain {
 					wildcard = true;
 				}else if(args[i].equals("-nM")){
 					removeNoMergeReads = true;
+				}else if(args[i].equals("-p")){
+					parallel = true;
+					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						splitBatchSize = Integer.parseInt(args[++i]);
+					}
 				}
 			}
 			if(outputDir == null){
@@ -2300,6 +2347,11 @@ public class FastQParseMain {
 					removeUntrimmedReads = true;
 				}else if(args[i].equals("-nA")){
 					removeNoAdapterReads = true;
+				}else if(args[i].equals("-p")){
+					parallel = true;
+					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
+						splitBatchSize = Integer.parseInt(args[++i]);
+					}
 				}
 			}
 			if(outputDir == null){
