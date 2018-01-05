@@ -254,15 +254,9 @@ public class UtilMethods {
 	//fuzzy search for string b in a
 	//returns a list of string starting positions
 	//set minOverlap to Integer.MAX_VALUE to make sure that the match only appears within the string to be searched
-	public static ArrayList<Match> searchWithN(String a, String b, double max, int offset, boolean indel, boolean bestOnly, int minOverlap, boolean wildcard){
+	public static ArrayList<Match> searchWithN(String a, int s, int e, String b, double max, int offset, boolean indel, boolean bestOnly, int minOverlap, boolean wildcard){
 		if(b.isEmpty())
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
-		
-		//try hamming (substitution only) search first
-		ArrayList<Match> hammingResults = searchWithNHamming(a, b, max, offset, bestOnly, minOverlap, wildcard);
-		if(!hammingResults.isEmpty()){
-			return hammingResults;
-		}
 		
 		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
 			int[][] curr = new int[b.length() + 1][3]; //{insertion, deletion, substitution}
@@ -276,12 +270,12 @@ public class UtilMethods {
 //			for(int i = 0; i <= b.length(); i++)
 //				System.out.format("%3d", i);
 //			System.out.println();
-			for(int i = 1; i <= a.length(); i++){
+			for(int i = 1; i <= e - s; i++){
 				curr[0] = new int[]{0, 0, 0};
 				currO[0] = i;
 				for(int j = 1; j <= end; j++){
-					if(Character.toUpperCase(b.charAt(j - 1)) == Character.toUpperCase(a.charAt(i - 1)) ||
-							(wildcard && (Character.toUpperCase(b.charAt(j - 1)) == 'N' || Character.toUpperCase(a.charAt(i - 1)) == 'N'))){
+					if(Character.toUpperCase(b.charAt(j - 1)) == Character.toUpperCase(a.charAt(s + i - 1)) ||
+							(wildcard && (Character.toUpperCase(b.charAt(j - 1)) == 'N' || Character.toUpperCase(a.charAt(s + i - 1)) == 'N'))){
 						curr[j] = i == 1 ? new int[]{j - 1, 0, 0} : copy(prev[j - 1]);
 						currO[j] = i == 1 ? 0 : prevO[j - 1];
 					}else{
@@ -300,7 +294,7 @@ public class UtilMethods {
 						}
 					}
 					
-					if(i == a.length()){
+					if(i == e - s){
 						int length = j - 1;
 						int index = currO[j - 1];
 						
@@ -317,7 +311,7 @@ public class UtilMethods {
 //					System.out.format("%3d", sum(curr[j - 1]));
 				}
 				
-				if(i == a.length()){
+				if(i == e - s){
 					int length = end;
 					int index = currO[end];
 					
@@ -338,8 +332,8 @@ public class UtilMethods {
 				if(end == b.length()){
 					int index = currO[b.length()];
 					int length;
-					if(a.length() - index < b.length()){
-						length = a.length() - index;
+					if(e - s - index < b.length()){
+						length = e - s - index;
 					}else{
 						length = b.length();
 					}
@@ -369,23 +363,23 @@ public class UtilMethods {
 			}
 			return result;
 		}else{
-			return hammingResults;
+			return searchWithNHamming(a, s, e, b, max, offset, bestOnly, minOverlap, wildcard);
 		}
 	}
 	
 	//very simple substitution only search
-	public static ArrayList<Match> searchWithNHamming(String a, String b, double max, int offset, boolean bestOnly, int minOverlap, boolean wildcard){
-		if(a.length() < b.length())
+	public static ArrayList<Match> searchWithNHamming(String a, int s, int e, String b, double max, int offset, boolean bestOnly, int minOverlap, boolean wildcard){
+		if(e - s < b.length())
 			return new ArrayList<Match>();
 		
 		ArrayList<Match> result = new ArrayList<Match>();
 		int min = Integer.MAX_VALUE;
 		
-		for(int i = 0; i <= a.length() - (minOverlap > b.length() ? b.length() : minOverlap); i++){
-			int dist = distWithN(a.substring(i, Math.min(i + b.length(), a.length())), b.substring(0, a.length() - i < b.length() ? (a.length() - i) : b.length()), false, wildcard);
+		for(int i = 0; i <= e - s - (minOverlap > b.length() ? b.length() : minOverlap); i++){
+			int dist = distWithN(a.substring(s + i, s + Math.min(i + b.length(), e - s)), b.substring(0, e - s - i < b.length() ? (e - s - i) : b.length()), false, wildcard);
 			int length;
-			if(a.length() - i < b.length())
-				length = a.length() - i;
+			if(e - s - i < b.length())
+				length = e - s - i;
 			else
 				length = b.length();
 			if(dist <= (max < 0.0 ? (-max * length) : max)){
@@ -630,10 +624,10 @@ public class UtilMethods {
 				
 				ArrayList<Match> matches;
 				if(a.anchored){
-					matches = searchWithN((a.isStart ? reverse(s) : s).substring(s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
+					matches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
 					matches.get(0).start += s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
 				}else{ //because searchWithN can only find starting locations, the 5' adapters need to be reversed along with the read
-					ArrayList<Match> tempMatches = searchWithN((a.isStart ? reverse(s) : s).substring(s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length())), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
+					ArrayList<Match> tempMatches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
 					matches = new ArrayList<Match>();
 					
 					int minEdit = Integer.MAX_VALUE;
