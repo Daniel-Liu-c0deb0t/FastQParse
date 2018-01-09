@@ -619,6 +619,11 @@ public class UtilMethods {
 			
 			return new String[]{s, q};
 		}else{ //search with flexible starting and ending location
+			int bestLength = 0;
+			int bestEdit = Integer.MAX_VALUE;
+			boolean bestStart = false;
+			Match bestMatch = null;
+			
 			for(int i = 0; i < adapters.size(); i++){
 				Adapter a = adapters.get(i);
 				
@@ -647,13 +652,22 @@ public class UtilMethods {
 					}
 				}
 				if(!matches.isEmpty()){
-					if(a.isStart){
-						s = s.substring(s.length() - matches.get(0).start); //reverse the index to get the correct index
-						q = q.substring(q.length() - matches.get(0).start);
-					}else{
-						s = s.substring(0, matches.get(0).start);
-						q = q.substring(0, matches.get(0).start);
+					if(matches.get(0).correctLength >= bestLength && (matches.get(0).correctLength > bestLength || matches.get(0).edits < bestEdit)){
+						bestStart = a.isStart;
+						bestMatch = matches.get(0);
+						bestLength = matches.get(0).correctLength;
+						bestEdit = matches.get(0).edits;
 					}
+				}
+			}
+			
+			if(bestMatch != null){
+				if(bestStart){
+					s = s.substring(s.length() - bestMatch.start); //reverse the index to get the correct index
+					q = q.substring(q.length() - bestMatch.start);
+				}else{
+					s = s.substring(0, bestMatch.start);
+					q = q.substring(0, bestMatch.start);
 				}
 			}
 			
