@@ -371,10 +371,6 @@ public class UtilMethods {
 	
 	//posterior probability based matching
 	//supports one or two sequences with probability information
-	//compares two models: P(match|equals) and P(random|equals) for each position
-	//formula: P(match|equals) = P(equals|match) * P(match) / P(equals)
-	//similar formula is used for random model
-	//P(equals) is sum of random and match probability, P(match) is a variable prior probability
 	//finds the best match based on the highest probability of a match that is better than the random model
 	public static ArrayList<Match> searchWithProb(String a, int s, int e, String qA, String b, String qB, double prior, int minOverlap, boolean wildcard){
 		if(b.isEmpty())
