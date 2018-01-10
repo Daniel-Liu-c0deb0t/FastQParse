@@ -593,16 +593,16 @@ public class UtilMethods {
 			ArrayList<Match> matches;
 			if(a.anchored){
 				if(prob < 0.0)
-					matches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
+					matches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
 				else
-					matches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, Integer.MAX_VALUE, wildcard);
-				matches.get(0).start += s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
+					matches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, Integer.MAX_VALUE, wildcard);
+				matches.get(0).start += s.length() - Math.min(a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
 			}else{ //because searchWithN can only find starting locations, the 5' adapters need to be reversed along with the read
 				ArrayList<Match> tempMatches = null;
 				if(prob < 0.0)
-					tempMatches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
+					tempMatches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
 				else
-					tempMatches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, minOverlap, wildcard);
+					tempMatches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, minOverlap, wildcard);
 				matches = new ArrayList<Match>();
 				
 				int minEdit = Integer.MAX_VALUE;
@@ -610,7 +610,7 @@ public class UtilMethods {
 				int matchIndex = -1;
 				for(int j = 0; j < tempMatches.size(); j++){
 					Match m = tempMatches.get(j);
-					m.start += s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
+					m.start += s.length() - Math.min(maxOffset + a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
 					if(m.correctLength >= maxLength && (m.correctLength > maxLength || m.edits < minEdit)){
 						matchIndex = j;
 						maxLength = m.correctLength;
