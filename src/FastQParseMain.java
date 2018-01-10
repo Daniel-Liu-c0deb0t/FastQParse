@@ -482,6 +482,10 @@ public class FastQParseMain {
 			logWriter.println("Parallel: " + parallel);
 			logWriter.println("Parallel Batch Size: " + splitBatchSize);
 			logWriter.println("Useable Processors: " + Runtime.getRuntime().availableProcessors());
+			if(probM < 0.0)
+				logWriter.println("Probability Based Matching for Merging Paired End Reads: false");
+			else
+				logWriter.println("Prior Probability for Paired End Merging: " + probM);
 			logWriter.println();
 			logWriter.println("Merging Pairs...");
 			logWriter.println();
@@ -543,6 +547,10 @@ public class FastQParseMain {
 			logWriter.println("Parallel: " + parallel);
 			logWriter.println("Parallel Batch Size: " + splitBatchSize);
 			logWriter.println("Useable Processors: " + Runtime.getRuntime().availableProcessors());
+			if(probA < 0.0)
+				logWriter.println("Probability Based Matching for Adapters: false");
+			else
+				logWriter.println("Prior Probability for Adapter Matching: " + probA);
 			logWriter.println();
 			logWriter.println("Filtering...");
 			logWriter.println();
