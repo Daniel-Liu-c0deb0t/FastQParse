@@ -134,6 +134,7 @@ public class UtilMethods {
 		return (quality + '!' < '!') ? '!' : '~';
 	}
 	
+	//compress base pairs into 3 bits each
 	public static BitSet toBit(String s){
 		BitSet set = new BitSet(s.length() * 3);
 		for(int i = 0; i < s.length(); i++){
@@ -154,6 +155,7 @@ public class UtilMethods {
 		return set;
 	}
 	
+	//decompress bits into base pairs
 	public static String toSequence(BitSet set){
 		StringBuilder builder = new StringBuilder();
 		for(int i = 0;; i++){
@@ -252,7 +254,7 @@ public class UtilMethods {
 	}
 	
 	//fuzzy search for string b in a
-	//returns a list of string starting positions
+	//returns a list of string starting positions and other information
 	//set minOverlap to Integer.MAX_VALUE to make sure that the match only appears within the string to be searched
 	public static ArrayList<Match> searchWithN(String a, int s, int e, String b, double max, int offset, boolean indel, boolean bestOnly, int minOverlap, boolean wildcard){
 		if(b.isEmpty())
@@ -365,6 +367,53 @@ public class UtilMethods {
 		}else{
 			return searchWithNHamming(a, s, e, b, max, offset, bestOnly, minOverlap, wildcard);
 		}
+	}
+	
+	//posterior probability based matching
+	//supports one or two sequences with probability information
+	//compares two models: P(match|equals) and P(random|equals) for each position
+	//formula: P(match|equals) = P(equals|match) * P(match) / P(equals)
+	//similar formula is used for random model
+	//P(equals) is sum of random and match probability, P(match) is a variable prior probability
+	//finds the best match based on the highest probability of a match that is better than the random model
+	public static ArrayList<Match> searchWithProb(String a, int s, int e, String qA, String b, String qB, double prior, int minOverlap, boolean wildcard){
+		if(b.isEmpty())
+			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
+		
+		double bestProb = 0.0;
+		Match bestMatch = null;
+		for(int i = 0; i <= e - s - (minOverlap > b.length() ? b.length() : minOverlap); i++){
+			double likelihoodRandom = 1.0;
+			double likelihoodMatch = 1.0;
+			for(int j = 0; j < Math.min(b.length(), e - s - i); j++){
+				char x = a.charAt(s + i + j);
+				char y = b.charAt(j);
+				double ex = toError(qA.charAt(s + i));
+				double ey = qB == null ? 0.0 : toError(qB.charAt(j));
+				if(qB == null){
+					if(!wildcard || (x != 'N' && y != 'N')){
+						likelihoodMatch *= x == y ? (1 - ex) : ex;
+						likelihoodRandom *= x == y ? 0.25 : (1 - 0.25);
+					}
+				}else{
+					if(!wildcard || (x != 'N' && y != 'N')){
+						likelihoodMatch *= x == y ? ((1 - ex) * (1 - ey)) : (1 - (1 - ex) * (1 - ey));
+						likelihoodRandom *= x == y ? (4 * 0.25 * 0.25) : (1 - 4 * 0.25 * 0.25);
+					}
+				}
+			}
+			double total = likelihoodMatch * prior + likelihoodRandom * (1 - prior);
+			double probMatch = likelihoodMatch * prior / total;
+			double probRandom = likelihoodRandom * (1 - prior) / total;
+			if(probMatch > probRandom && probMatch > bestProb){
+				bestProb = probMatch;
+				bestMatch = new Match(i, 0, Math.min(b.length(), a.length() - i));
+			}
+		}
+		
+		if(bestMatch == null)
+			return new ArrayList<Match>();
+		return new ArrayList<Match>(Arrays.asList(bestMatch));
 	}
 	
 	//very simple substitution only search
@@ -480,36 +529,13 @@ public class UtilMethods {
 	//merge two reads
 	//increase quality if two base pairs are equal
 	//decrease quality if two base pairs are not equal
-	public static String[] mergeReads(String s1, String q1, String s2, String q2, double editMax, boolean algorithm, boolean wildcard){
+	public static String[] mergeReads(String s1, String q1, String s2, String q2, double editMax, double prob, boolean wildcard){
 		s2 = reverseComplement(s2);
 		q2 = reverse(q2);
 		
 		int start = -1;
 		
-		if(algorithm){ //quality based matching
-			double maxScore = 0;
-			double e1;
-			double e2;
-			for(int i = 0; i < s1.length(); i++){
-				double score = 0;
-				for(int j = 0; j < Math.min(s2.length(), s1.length() - i); j++){
-					e1 = toError(q1.charAt(i + j));
-					e2 = toError(q2.charAt(j));
-					
-					if(wildcard && (Character.toUpperCase(s1.charAt(i + j)) == 'N' || Character.toUpperCase(s2.charAt(j)) == 'N')){
-						score += 0.5;
-					}else if(s1.charAt(i + j) == s2.charAt(j)){
-						score += (1.0 - e1) * (1.0 - e2) + e1 * e2 / 3.0;
-					}else{
-						score -= 1.0 - ((1.0 - e2) * e1 / 3.0 + (1.0 - e1) * e2 / 3.0 + e1 * e2 / 2.0);
-					}
-				}
-				if(score > maxScore){
-					start = i;
-					maxScore = score;
-				}
-			}
-		}else{ //find match with least edit distance
+		if(prob < 0.0){ //find match with least edit distance
 			int minError = Integer.MAX_VALUE;
 			int error = 0;
 			int maxNonError = 0;
@@ -523,6 +549,10 @@ public class UtilMethods {
 					minError = error;
 				}
 			}
+		}else{ //probability based matching
+			ArrayList<Match> matches = searchWithProb(s1, 0, s1.length(), q1, s2, q2, prob, 0, wildcard);
+			if(!matches.isEmpty())
+				start = matches.get(0).start;
 		}
 		
 		if(start == -1){
@@ -555,124 +585,67 @@ public class UtilMethods {
 	}
 	
 	//remove adapters from sequence and quality strings
-	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, double editMax, int minOverlap, int maxOffset, boolean indel, boolean mode, boolean wildcard){
-		if(mode){ //allow the adapter to hang off each end of the read (deprecated)
-			for(int i = 0; i < adapters.size(); i++){
-				Adapter a = adapters.get(i);
-				if(a.anchored){
-					if(a.isStart){
-						if(matchWithN(s.substring(0, a.str.length()), a.str, editMax, indel, wildcard)){
-							s = s.substring(a.str.length());
-							q = q.substring(a.str.length());
-						}
-					}else{
-						if(matchWithN(s.substring(s.length() - a.str.length()), a.str, editMax, indel, wildcard)){
-							s = s.substring(0, s.length() - a.str.length());
-							q = q.substring(0, q.length() - a.str.length());
-						}
-					}
-				}else{
-					int maxNonError = 0;
-					int minError = Integer.MAX_VALUE;
-					int nonError;
-					int error = 0;
-					int bestIndex = -1;
-					for(int j = a.isStart ? minOverlap : s.length() + a.str.length() - minOverlap; a.isStart ? j <= s.length() + a.str.length() - minOverlap : j >= minOverlap; j += a.isStart ? 1 : -1){
-						if(a.isStart && j <= a.str.length()){
-							error = distWithN(s.substring(0, j), a.str.substring(a.str.length() - j), indel, wildcard);
-							nonError = j - error;
-							if(error <= (editMax < 0.0 ? (-editMax * j) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
-								bestIndex = j;
-								maxNonError = nonError;
-								minError = error;
-							}
-						}else if(j <= s.length()){
-							error = distWithN(s.substring(j - Math.min(j, a.str.length()), j), a.str, indel, wildcard);
-							nonError = Math.min(j, a.str.length()) - error;
-							if(error <= (editMax < 0.0 ? (-editMax * Math.min(j, a.str.length())) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
-								bestIndex = j;
-								maxNonError = nonError;
-								minError = error;
-							}
-						}else if(!a.isStart){
-							error = distWithN(s.substring(j - a.str.length()), a.str.substring(0, a.str.length() - j + s.length()), indel, wildcard);
-							nonError = a.str.length() - j + s.length() - error;
-							if(error <= (editMax < 0.0 ? (-editMax * (a.str.length() - j + s.length())) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
-								bestIndex = j;
-								maxNonError = nonError;
-								minError = error;
-							}
-						}
-					}
-					
-					if(bestIndex != -1){
-						if(a.isStart){
-							s = s.substring(bestIndex);
-							q = q.substring(bestIndex);
-						}else{
-							s = s.substring(0, bestIndex - a.str.length());
-							q = q.substring(0, bestIndex - a.str.length());
-						}
-					}
-				}
-			}
+	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, double editMax, int minOverlap, int maxOffset, boolean indel, double prob, boolean wildcard){
+		int bestLength = 0;
+		int bestEdit = Integer.MAX_VALUE;
+		boolean bestStart = false;
+		Match bestMatch = null;
+		
+		for(int i = 0; i < adapters.size(); i++){
+			Adapter a = adapters.get(i);
 			
-			return new String[]{s, q};
-		}else{ //search with flexible starting and ending location
-			int bestLength = 0;
-			int bestEdit = Integer.MAX_VALUE;
-			boolean bestStart = false;
-			Match bestMatch = null;
-			
-			for(int i = 0; i < adapters.size(); i++){
-				Adapter a = adapters.get(i);
-				
-				ArrayList<Match> matches;
-				if(a.anchored){
+			ArrayList<Match> matches;
+			if(a.anchored){
+				if(prob < 0.0)
 					matches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
-					matches.get(0).start += s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
-				}else{ //because searchWithN can only find starting locations, the 5' adapters need to be reversed along with the read
-					ArrayList<Match> tempMatches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
-					matches = new ArrayList<Match>();
-					
-					int minEdit = Integer.MAX_VALUE;
-					int maxLength = 0;
-					int matchIndex = -1;
-					for(int j = 0; j < tempMatches.size(); j++){
-						Match m = tempMatches.get(j);
-						m.start += s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
-						if(m.correctLength >= maxLength && (m.correctLength > maxLength || m.edits < minEdit)){
-							matchIndex = j;
-							maxLength = m.correctLength;
-							minEdit = m.edits;
-						}
-					}
-					if(matchIndex != -1){
-						matches.add(tempMatches.get(matchIndex));
+				else
+					matches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, Integer.MAX_VALUE, wildcard);
+				matches.get(0).start += s.length() - Math.min(a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
+			}else{ //because searchWithN can only find starting locations, the 5' adapters need to be reversed along with the read
+				ArrayList<Match> tempMatches = null;
+				if(prob < 0.0)
+					tempMatches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
+				else
+					tempMatches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, minOverlap, wildcard);
+				matches = new ArrayList<Match>();
+				
+				int minEdit = Integer.MAX_VALUE;
+				int maxLength = 0;
+				int matchIndex = -1;
+				for(int j = 0; j < tempMatches.size(); j++){
+					Match m = tempMatches.get(j);
+					m.start += s.length() - Math.min(maxOffset + a.str.length() + (indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
+					if(m.correctLength >= maxLength && (m.correctLength > maxLength || m.edits < minEdit)){
+						matchIndex = j;
+						maxLength = m.correctLength;
+						minEdit = m.edits;
 					}
 				}
-				if(!matches.isEmpty()){
-					if(matches.get(0).correctLength >= bestLength && (matches.get(0).correctLength > bestLength || matches.get(0).edits < bestEdit)){
-						bestStart = a.isStart;
-						bestMatch = matches.get(0);
-						bestLength = matches.get(0).correctLength;
-						bestEdit = matches.get(0).edits;
-					}
+				if(matchIndex != -1){
+					matches.add(tempMatches.get(matchIndex));
 				}
 			}
-			
-			if(bestMatch != null){
-				if(bestStart){
-					s = s.substring(s.length() - bestMatch.start); //reverse the index to get the correct index
-					q = q.substring(q.length() - bestMatch.start);
-				}else{
-					s = s.substring(0, bestMatch.start);
-					q = q.substring(0, bestMatch.start);
+			if(!matches.isEmpty()){
+				if(matches.get(0).correctLength >= bestLength && (matches.get(0).correctLength > bestLength || matches.get(0).edits < bestEdit)){
+					bestStart = a.isStart;
+					bestMatch = matches.get(0);
+					bestLength = matches.get(0).correctLength;
+					bestEdit = matches.get(0).edits;
 				}
 			}
-			
-			return new String[]{s, q};
 		}
+		
+		if(bestMatch != null){
+			if(bestStart){
+				s = s.substring(s.length() - bestMatch.start); //reverse the index to get the correct index
+				q = q.substring(q.length() - bestMatch.start);
+			}else{
+				s = s.substring(0, bestMatch.start);
+				q = q.substring(0, bestMatch.start);
+			}
+		}
+		
+		return new String[]{s, q};
 	}
 	
 	//quality trim method 1
