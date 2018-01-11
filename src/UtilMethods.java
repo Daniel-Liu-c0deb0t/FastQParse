@@ -300,7 +300,7 @@ public class UtilMethods {
 						int length = j - 1;
 						int index = currO[j - 1];
 						
-						if(length >= minOverlap && sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max)){
+						if(length >= (minOverlap > b.length() ? b.length() : minOverlap) && sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max)){
 							if(!bestOnly || sum(curr[j - 1]) <= min){
 								result.add(new Match(index, sum(curr[j - 1]), length));
 								min = sum(curr[j - 1]);
@@ -317,7 +317,7 @@ public class UtilMethods {
 					int length = end;
 					int index = currO[end];
 					
-					if(length >= minOverlap && sum(curr[end]) <= (max < 0.0 ? (-max * length) : max)){
+					if(length >= (minOverlap > b.length() ? b.length() : minOverlap) && sum(curr[end]) <= (max < 0.0 ? (-max * length) : max)){
 						if(!bestOnly || sum(curr[end]) <= min){
 							result.add(new Match(index, sum(curr[end]), length));
 							min = sum(curr[end]);
@@ -340,7 +340,7 @@ public class UtilMethods {
 						length = b.length();
 					}
 					length += curr[b.length()][0] - curr[b.length()][1];
-					if(length >= minOverlap && sum(curr[b.length()]) <= (max < 0.0 ? (-max * length) : max)){
+					if(length >= (minOverlap > b.length() ? b.length() : minOverlap) && sum(curr[b.length()]) <= (max < 0.0 ? (-max * length) : max)){
 						if(!bestOnly || sum(curr[b.length()]) <= min){
 							result.add(new Match(index, sum(curr[b.length()]), length));
 							min = sum(curr[b.length()]);

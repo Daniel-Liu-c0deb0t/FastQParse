@@ -2531,9 +2531,9 @@ public class FastQParseMain {
 					simIter = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--len")){
 					simReadLength = Integer.parseInt(args[++i]);
-				}else if(args[i].equals("--iB")){
+				}else if(args[i].equals("-iB")){
 					allowIndelsB = true;
-				}else if(args[i].equals("--iA")){
+				}else if(args[i].equals("-iA")){
 					allowIndelsA = true;
 				}
 			}
