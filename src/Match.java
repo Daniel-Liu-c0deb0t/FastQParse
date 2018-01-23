@@ -1,15 +1,16 @@
 
 public class Match{
-	public int start, edits, correctLength;
+	public int end, edits, length;
 	
-	public Match(int start, int edits, int correctLength){
-		this.start = start;
+	//note that the length is not the exact length of the match!
+	public Match(int end, int edits, int length){
+		this.end = end;
 		this.edits = edits;
-		this.correctLength = correctLength;
+		this.length = length;
 	}
 	
 	@Override
 	public String toString(){
-		return "Start Index: " + start + "; Edits: " + edits + "; Correct Length: " + correctLength;
+		return "End Index: " + end + "; Edits: " + edits + "; Length: " + length;
 	}
 }

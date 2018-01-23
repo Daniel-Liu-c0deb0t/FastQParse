@@ -8,7 +8,7 @@ import java.util.Random;
 
 public class UtilMethods {
 	private static HashMap<Character, Character> complements = new HashMap<Character, Character>();
-	private static char[] bp = {'A', 'T', 'C', 'G'};
+	private static char[] bp = {'A', 'T', 'C', 'G', 'N'};
 	
 	static{
 		//complements for each bp
@@ -23,9 +23,8 @@ public class UtilMethods {
 		if(logWriter != null){
 			e.printStackTrace(logWriter);
 			logWriter.flush();
-		}else{
-			e.printStackTrace();
 		}
+		e.printStackTrace(System.err);
 		System.exit(1);
 	}
 	
@@ -253,120 +252,123 @@ public class UtilMethods {
 		}
 	}
 	
-	//fuzzy search for string b in a
-	//returns a list of string starting positions and other information
+	//generate masks for patterns that will not change
+	//this can be done once and the pattern can be used for every single text that is searched
+	public static HashMap<Character, BitVector> genPatternMasks(String b, boolean indels, boolean wildcard){
+		HashMap<Character, BitVector> res = new HashMap<Character, BitVector>();
+		for(int i = 0; i < bp.length; i++){
+			if(wildcard && bp[i] == 'N'){
+				res.put(bp[i], new BitVector(b.length() + (indels ? 0 : 1)).set(0, b.length()));
+			}else{
+				res.put(bp[i], new BitVector(b.length() + (indels ? 0 : 1)));
+			}
+		}
+		for(int i = 0; i < b.length(); i++){
+			char c = b.charAt(i);
+			if(wildcard && c == 'N'){
+				for(int j = 0; j < bp.length; j++){
+					res.get(bp[j]).set(i);
+				}
+			}else{
+				res.get(c).set(i);
+			}
+		}
+		return res;
+	}
+	
+	//fuzzy search for string b in string a
+	//returns a list of string ending positions and other information
 	//set minOverlap to Integer.MAX_VALUE to make sure that the match only appears within the string to be searched
-	public static ArrayList<Match> searchWithN(String a, int s, int e, String b, double max, int offset, boolean indel, boolean bestOnly, int minOverlap, boolean wildcard){
+	//supports insertions, deletions, and substitutions, or just substitutions only
+	public static ArrayList<Match> searchWithN(String a, int s, int e, String b, double edit, boolean indels, boolean bestOnly, int minOverlap, boolean wildcard, HashMap<Character, BitVector> pm){
 		if(b.isEmpty())
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
 		
-		if(indel){ //Wagner-Fischer algorithm, with the ability to search and match different lengths
-			int[][] curr = new int[b.length() + 1][3]; //{insertion, deletion, substitution}
-			int[] currO = new int[b.length() + 1]; //origin
-			int[][] prev = new int[b.length() + 1][3];
-			int[] prevO = new int[b.length() + 1];
-			ArrayList<Match> result = new ArrayList<Match>();
-			int min = Integer.MAX_VALUE;
-			int end = Math.min((int)(max < 0.0 ? (-max * b.length()) : max) + 1, b.length());
-			
-//			for(int i = 0; i <= b.length(); i++)
-//				System.out.format("%3d", i);
-//			System.out.println();
-			for(int i = 1; i <= e - s; i++){
-				curr[0] = new int[]{0, 0, 0};
-				currO[0] = i;
-				for(int j = 1; j <= end; j++){
-					if(Character.toUpperCase(b.charAt(j - 1)) == Character.toUpperCase(a.charAt(s + i - 1)) ||
-							(wildcard && (Character.toUpperCase(b.charAt(j - 1)) == 'N' || Character.toUpperCase(a.charAt(s + i - 1)) == 'N'))){
-						curr[j] = i == 1 ? new int[]{j - 1, 0, 0} : copy(prev[j - 1]);
-						currO[j] = i == 1 ? 0 : prevO[j - 1];
-					}else{
-						int sub = i == 1 ? j - 1 : sum(prev[j - 1]);
-						int ins = sum(curr[j - 1]);
-						int del = i == 1 ? j : sum(prev[j]);
-						if(sub <= ins && sub <= del){
-							curr[j] = i == 1 ? new int[]{j - 1, 0, 1} : new int[]{prev[j - 1][0], prev[j - 1][1], prev[j - 1][2] + 1};
-							currO[j] = i == 1 ? 0 : prevO[j - 1];
-						}else if(ins <= sub && ins <= del){
-							curr[j] = new int[]{curr[j - 1][0] + 1, curr[j - 1][1], curr[j - 1][2]};
-							currO[j] = currO[j - 1];
-						}else if(del <= sub && del <= ins){
-							curr[j] = i == 1 ? new int[]{j, 1, 0} : new int[]{prev[j][0], prev[j][1] + 1, prev[j][2]};
-							currO[j] = i == 1 ? 0 : prevO[j];
-						}
+		minOverlap = Math.min(minOverlap, b.length());
+		a = makeStr('#', b.length() - minOverlap) + a;
+		e += b.length() - minOverlap;
+		int min = Integer.MAX_VALUE;
+		ArrayList<Match> res = new ArrayList<Match>();
+		
+		if(indels){ //Myer's algorithm
+			BitVector vn = new BitVector(b.length());
+			BitVector vp = new BitVector(b.length()).set(0, b.length());
+			BitVector allSet = new BitVector(b.length()).set(0, b.length());
+			int dist = b.length();
+			for(int i = s; i < e; i++){
+				BitVector m = a.charAt(i) == '#' ? allSet : pm.get(a.charAt(i));
+				BitVector d0 = new BitVector(b.length()).or(m).and(vp).add(vp).xor(vp).or(m).or(vn);
+				BitVector hp = new BitVector(b.length()).or(d0).or(vp).not().or(vn);
+				BitVector hn = new BitVector(b.length()).or(vp).and(d0);
+				vp = new BitVector(b.length()).or(d0).orLShift(hp).not().orLShift(hn);
+				vn = new BitVector(b.length()).or(d0).andLShift(hp);
+				
+				if(hp.get(b.length() - 1)){
+					dist++;
+				}else if(hn.get(b.length() - 1)){
+					dist--;
+				}
+				
+				int index = i - (b.length() - minOverlap);
+				int length = Math.min(index + 1, b.length());
+				if(dist <= (edit < 0.0 ? (-edit * length) : edit) && length >= minOverlap){
+					if(!bestOnly || dist <= min){
+						res.add(new Match(index, dist, length));
+						min = dist;
 					}
+				}
+			}
+		}else{ //Bitap algorithm
+			if(e - s < b.length())
+				return new ArrayList<Match>();
+			
+			int totalEdit = (int)(edit < 0.0 ? (-edit * b.length()) : edit);
+			BitVector[] r = new BitVector[totalEdit + 1];
+			for(int i = 0; i <= totalEdit; i++){
+				r[i] = new BitVector(b.length() + 1).set(0);
+			}
+			
+			for(int i = s; i < e; i++){
+				BitVector old = new BitVector(b.length() + 1).or(r[0]);
+				boolean found = false;
+				for(int j = 0; j <= totalEdit; j++){
+					if(j == 0){
+						if(a.charAt(i) != '#')
+							r[0].and(pm.get(a.charAt(i)));
+					}else{
+						BitVector temp = new BitVector(b.length() + 1).or(r[j]);
+						(a.charAt(i) == '#' ? r[j] : r[j].and(pm.get(a.charAt(i)))).or(old);
+						old = temp;
+					}
+					r[j].leftShift().set(0);
 					
-					if(i == e - s){
-						int length = j - 1;
-						int index = currO[j - 1];
-						
-						if(length >= (minOverlap > b.length() ? b.length() : minOverlap) && sum(curr[j - 1]) <= (max < 0.0 ? (-max * length) : max)){
-							if(!bestOnly || sum(curr[j - 1]) <= min){
-								result.add(new Match(index, sum(curr[j - 1]), length));
-								min = sum(curr[j - 1]);
+					if(!found && r[j].get(b.length())){
+						int index = i - (b.length() - minOverlap);
+						int length = Math.min(index + 1, b.length());
+						if(j <= (edit < 0.0 ? (-edit * length) : edit) && length >= minOverlap){
+							if(!bestOnly || j <= min){
+								res.add(new Match(index, j, length));
+								min = j;
 							}
 						}
+						found = true;
 					}
-					
-					prev[j - 1] = copy(curr[j - 1]);
-					prevO[j - 1] = currO[j - 1];
-//					System.out.format("%3d", sum(curr[j - 1]));
-				}
-				
-				if(i == e - s){
-					int length = end;
-					int index = currO[end];
-					
-					if(length >= (minOverlap > b.length() ? b.length() : minOverlap) && sum(curr[end]) <= (max < 0.0 ? (-max * length) : max)){
-						if(!bestOnly || sum(curr[end]) <= min){
-							result.add(new Match(index, sum(curr[end]), length));
-							min = sum(curr[end]);
-						}
-					}
-				}
-				
-				prev[end] = copy(curr[end]);
-				prevO[end] = currO[end];
-//				System.out.format("%3d\n", sum(curr[end]));
-				while(end >= 0 && sum(curr[end]) > (max < 0.0 ? (-max * b.length()) : max)){
-					end--;
-				}
-				if(end == b.length()){
-					int index = currO[b.length()];
-					int length;
-					if(e - s - index < b.length()){
-						length = e - s - index;
-					}else{
-						length = b.length();
-					}
-					length += curr[b.length()][0] - curr[b.length()][1];
-					if(length >= (minOverlap > b.length() ? b.length() : minOverlap) && sum(curr[b.length()]) <= (max < 0.0 ? (-max * length) : max)){
-						if(!bestOnly || sum(curr[b.length()]) <= min){
-							result.add(new Match(index, sum(curr[b.length()]), length));
-							min = sum(curr[b.length()]);
-						}
-					}
-				}else{
-					end++;
-					prev[end] = new int[]{(int)(max < 0.0 ? (-max * b.length()) : max) + 1, 0, 0};
 				}
 			}
-			
-			if(bestOnly && !result.isEmpty()){ //if only find best, then return only the matches with shortest distance
-				ArrayList<Match> result2 = new ArrayList<Match>();
-				for(int i = result.size() - 1; i >= 0; i--){
-					if(result.get(i).edits == min){
-						result2.add(result.get(i));
-					}else{
-						break;
-					}
-				}
-				return result2;
-			}
-			return result;
-		}else{
-			return searchWithNHamming(a, s, e, b, max, offset, bestOnly, minOverlap, wildcard);
 		}
+		
+		if(bestOnly && !res.isEmpty()){ //if only find best match, then return only the matches with shortest distance
+			ArrayList<Match> res2 = new ArrayList<Match>();
+			for(int i = res.size() - 1; i >= 0; i--){
+				if(res.get(i).edits == min){
+					res2.add(res.get(i));
+				}else{
+					break;
+				}
+			}
+			return res2;
+		}
+		return res;
 	}
 	
 	//posterior probability based matching
@@ -378,14 +380,14 @@ public class UtilMethods {
 		
 		double bestProb = 0.0;
 		Match bestMatch = null;
-		for(int i = 0; i <= e - s - (minOverlap > b.length() ? b.length() : minOverlap); i++){
+		for(int i = s + Math.max(Math.min(minOverlap, b.length()) - 1, 0); i < e; i++){
 			double likelihoodRandom = 1.0;
 			double likelihoodMatch = 1.0;
-			for(int j = 0; j < Math.min(b.length(), e - s - i); j++){
-				char x = a.charAt(s + i + j);
-				char y = b.charAt(j);
-				double ex = toError(qA.charAt(s + i));
-				double ey = qB == null ? 0.0 : toError(qB.charAt(j));
+			for(int j = Math.max(i - b.length() + 1, 0); j <= i; j++){
+				char x = a.charAt(j);
+				char y = b.charAt(b.length() - 1 - (i - j));
+				double ex = toError(qA.charAt(j));
+				double ey = qB == null ? 0.0 : toError(qB.charAt(b.length() - 1 - (i - j)));
 				if(qB == null){
 					if(!wildcard || (x != 'N' && y != 'N')){
 						likelihoodMatch *= x == y ? (1 - ex) : ex;
@@ -403,50 +405,13 @@ public class UtilMethods {
 			double probRandom = likelihoodRandom * (1 - prior) / total;
 			if(probMatch > probRandom && probMatch > bestProb){
 				bestProb = probMatch;
-				bestMatch = new Match(i, 0, Math.min(b.length(), a.length() - i));
+				bestMatch = new Match(i, 0, Math.min(i + 1, b.length()));
 			}
 		}
 		
 		if(bestMatch == null)
 			return new ArrayList<Match>();
 		return new ArrayList<Match>(Arrays.asList(bestMatch));
-	}
-	
-	//very simple substitution only search
-	public static ArrayList<Match> searchWithNHamming(String a, int s, int e, String b, double max, int offset, boolean bestOnly, int minOverlap, boolean wildcard){
-		if(e - s < b.length())
-			return new ArrayList<Match>();
-		
-		ArrayList<Match> result = new ArrayList<Match>();
-		int min = Integer.MAX_VALUE;
-		
-		for(int i = 0; i <= e - s - (minOverlap > b.length() ? b.length() : minOverlap); i++){
-			int dist = distWithN(a.substring(s + i, s + Math.min(i + b.length(), e - s)), b.substring(0, e - s - i < b.length() ? (e - s - i) : b.length()), false, wildcard);
-			int length;
-			if(e - s - i < b.length())
-				length = e - s - i;
-			else
-				length = b.length();
-			if(dist <= (max < 0.0 ? (-max * length) : max)){
-				if(!bestOnly || dist <= min){
-					result.add(new Match(i, dist, length));
-					min = dist;
-				}
-			}
-		}
-		
-		if(bestOnly && !result.isEmpty()){
-			ArrayList<Match> result2 = new ArrayList<Match>();
-			for(int i = result.size() - 1; i >= 0; i--){
-				if(result.get(i).edits == min){
-					result2.add(result.get(i));
-				}else{
-					break;
-				}
-			}
-			return result2;
-		}
-		return result;
 	}
 	
 	public static int sum(int[] arr){
@@ -532,23 +497,21 @@ public class UtilMethods {
 		int start = -1;
 		
 		if(prob < 0.0){ //find match with least edit distance
-			int minError = Integer.MAX_VALUE;
-			int error = 0;
-			int maxNonError = 0;
-			int nonError = 0;
-			for(int i = 0; i < s1.length(); i++){
-				error = distWithN(s1.substring(i, Math.min(s1.length(), i + s2.length())), s2.substring(0, Math.min(s2.length(), s1.length() - i)), false, wildcard);
-				nonError = Math.min(s2.length(), s1.length() - i) - error;
-				if(error <= (editMax < 0.0 ? (-editMax * Math.min(s2.length(), s1.length() - i)) : editMax) && nonError >= maxNonError && (nonError > maxNonError || error < minError)){
-					start = i;
-					maxNonError = nonError;
-					minError = error;
+			ArrayList<Match> matches = searchWithN(s2, 0, s2.length(), s1, editMax, false, false, 1, wildcard, genPatternMasks(s1, false, wildcard));
+			int minEdits = Integer.MAX_VALUE;
+			int maxLength = 0;
+			
+			for(int i = 0; i < matches.size(); i++){
+				if(matches.get(i).length >= maxLength && (matches.get(i).length > maxLength || matches.get(i).edits < minEdits)){
+					start = s1.length() - 1 - matches.get(i).end;
+					maxLength = matches.get(i).length;
+					minEdits = matches.get(i).edits;
 				}
 			}
 		}else{ //probability based matching
-			ArrayList<Match> matches = searchWithProb(s1, 0, s1.length(), q1, s2, q2, prob, 0, wildcard);
+			ArrayList<Match> matches = searchWithProb(s2, 0, s2.length(), q2, s1, q1, prob, 1, wildcard);
 			if(!matches.isEmpty())
-				start = matches.get(0).start;
+				start = s1.length() - 1 - matches.get(0).end;
 		}
 		
 		if(start == -1){
@@ -581,7 +544,7 @@ public class UtilMethods {
 	}
 	
 	//remove adapters from sequence and quality strings
-	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, double editMax, int minOverlap, int maxOffset, boolean indel, double prob, boolean wildcard){
+	public static String[] removeAdapters(String s, String q, ArrayList<Adapter> adapters, double editMax, int minOverlap, int maxOffset, boolean indels, double prob, boolean wildcard, ArrayList<HashMap<Character, BitVector>> pm){
 		int bestLength = 0;
 		int bestEdit = Integer.MAX_VALUE;
 		boolean bestStart = false;
@@ -593,16 +556,15 @@ public class UtilMethods {
 			ArrayList<Match> matches;
 			if(a.anchored){
 				if(prob < 0.0)
-					matches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, 0, indel, true, Integer.MAX_VALUE, wildcard);
+					matches = searchWithN(a.isStart ? s : reverse(s), 0, Math.min(a.str.length() + (prob < 0.0 && indels ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), a.isStart ? a.str : reverse(a.str), editMax, indels, true, Integer.MAX_VALUE, wildcard, pm.get(i));
 				else
-					matches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, Integer.MAX_VALUE, wildcard);
-				matches.get(0).start += s.length() - Math.min(a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
-			}else{ //because searchWithN can only find starting locations, the 5' adapters need to be reversed along with the read
+					matches = searchWithProb(a.isStart ? s : reverse(s), 0, Math.min(a.str.length() + (prob < 0.0 && indels ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), a.isStart ? q : reverse(q), a.isStart ? a.str : reverse(a.str), null, prob, Integer.MAX_VALUE, wildcard);
+			}else{
 				ArrayList<Match> tempMatches = null;
 				if(prob < 0.0)
-					tempMatches = searchWithN(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(a.str) : a.str, editMax, maxOffset, indel, false, minOverlap, wildcard);
+					tempMatches = searchWithN(a.isStart ? s : reverse(s), 0, Math.min(maxOffset + a.str.length() + (prob < 0.0 && indels ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), a.isStart ? a.str : reverse(a.str), editMax, indels, false, minOverlap, wildcard, pm.get(i));
 				else
-					tempMatches = searchWithProb(a.isStart ? reverse(s) : s, s.length() - Math.min(maxOffset + a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), s.length(), a.isStart ? reverse(q) : q, a.isStart ? reverse(a.str) : a.str, null, prob, minOverlap, wildcard);
+					tempMatches = searchWithProb(a.isStart ? s : reverse(s), 0, Math.min(maxOffset + a.str.length() + (prob < 0.0 && indels ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length()), a.isStart ? q : reverse(q), a.isStart ? a.str : reverse(a.str), null, prob, minOverlap, wildcard);
 				matches = new ArrayList<Match>();
 				
 				int minEdit = Integer.MAX_VALUE;
@@ -610,10 +572,9 @@ public class UtilMethods {
 				int matchIndex = -1;
 				for(int j = 0; j < tempMatches.size(); j++){
 					Match m = tempMatches.get(j);
-					m.start += s.length() - Math.min(maxOffset + a.str.length() + (prob < 0.0 && indel ? (editMax < 0.0 ? (int)(-editMax * a.str.length()) : (int)editMax) : 0), s.length());
-					if(m.correctLength >= maxLength && (m.correctLength > maxLength || m.edits < minEdit)){
+					if(m.length >= maxLength && (m.length > maxLength || m.edits < minEdit)){
 						matchIndex = j;
-						maxLength = m.correctLength;
+						maxLength = m.length;
 						minEdit = m.edits;
 					}
 				}
@@ -622,10 +583,10 @@ public class UtilMethods {
 				}
 			}
 			if(!matches.isEmpty()){
-				if(matches.get(0).correctLength >= bestLength && (matches.get(0).correctLength > bestLength || matches.get(0).edits < bestEdit)){
+				if(matches.get(0).length >= bestLength && (matches.get(0).length > bestLength || matches.get(0).edits < bestEdit)){
 					bestStart = a.isStart;
 					bestMatch = matches.get(0);
-					bestLength = matches.get(0).correctLength;
+					bestLength = matches.get(0).length;
 					bestEdit = matches.get(0).edits;
 				}
 			}
@@ -633,11 +594,11 @@ public class UtilMethods {
 		
 		if(bestMatch != null){
 			if(bestStart){
-				s = s.substring(s.length() - bestMatch.start); //reverse the index to get the correct index
-				q = q.substring(q.length() - bestMatch.start);
+				s = s.substring(bestMatch.end + 1);
+				q = q.substring(bestMatch.end + 1);
 			}else{
-				s = s.substring(0, bestMatch.start);
-				q = q.substring(0, bestMatch.start);
+				s = s.substring(0, s.length() - 1 - bestMatch.end); //reverse the index to get the correct index
+				q = q.substring(0, q.length() - 1 - bestMatch.end);
 			}
 		}
 		
