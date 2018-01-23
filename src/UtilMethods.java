@@ -197,61 +197,6 @@ public class UtilMethods {
 		return new String(result);
 	}
 	
-	//fuzzy match where N can stand for any character
-	public static boolean matchWithN(String a, String b, double max, boolean indel, boolean wildcard){
-		return distWithN(a, b, indel, wildcard) <= (max < 0.0 ? (-max * b.length()) : max);
-	}
-	
-	//distance between two strings
-	//N can stand for any character
-	//support for insertions, deletions, and substitutions
-	public static int distWithN(String a, String b, boolean indel, boolean wildcard){
-		if(a.isEmpty() || b.isEmpty())
-			return Math.max(a.length(), b.length());
-		
-		if(indel){ //Wagner-Fischer algorithm
-			if(a.length() > b.length()){ //use the smaller string length as the array size
-				String temp = a;
-				a = b;
-				b = temp;
-			}
-			
-			int[] curr = new int[a.length() + 1]; //two arrays to save space
-			int[] prev = new int[a.length() + 1];
-			
-			for(int i = 1; i <= b.length(); i++){
-				curr[0] = i;
-				for(int j = 1; j <= a.length(); j++){
-					if(Character.toUpperCase(b.charAt(i - 1)) == Character.toUpperCase(a.charAt(j - 1)) ||
-							(wildcard && (Character.toUpperCase(b.charAt(i - 1)) == 'N' || Character.toUpperCase(a.charAt(j - 1)) == 'N'))){
-						curr[j] = i == 1 ? (j - 1) : prev[j - 1]; //if bp equals or they equal N
-					}else{ //insertion, deletion, and substitution
-						curr[j] = Math.min(Math.min((i == 1 ? j : prev[j]) + 1, curr[j - 1] + 1), (i == 1 ? (j - 1) : prev[j - 1]) + 1);
-					}
-					if(i < b.length())
-						prev[j - 1] = curr[j - 1]; //update prev array with previously calculated elements in curr array
-				}
-				if(i < b.length())
-					prev[a.length()] = curr[a.length()];
-			}
-			
-			return curr[a.length()];
-		}else{ //count mismatches (substitution distance)
-			int minLen = Math.min(a.length(), b.length());
-			int wrong = Math.max(a.length(), b.length()) - minLen;
-			
-			for(int i = 0; i < minLen; i++){
-				if(wildcard && (Character.toUpperCase(a.charAt(i)) == 'N' || Character.toUpperCase(b.charAt(i)) == 'N'))
-					continue;
-				if(Character.toUpperCase(a.charAt(i)) != Character.toUpperCase(b.charAt(i))){
-					wrong++;
-				}
-			}
-			
-			return wrong;
-		}
-	}
-	
 	//generate masks for patterns that will not change
 	//this can be done once and the pattern can be used for every single text that is searched
 	public static HashMap<Character, BitVector> genPatternMasks(String b, boolean indels, boolean wildcard){
