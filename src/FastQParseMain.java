@@ -107,6 +107,7 @@ public class FastQParseMain {
 	
 	private static boolean simReversed = false; //generate simulated data
 	private static boolean simUMI = false;
+	private static boolean simMerging = false;
 	private static int simReadLength = 100;
 	private static long simIter = 1000;
 	
@@ -657,11 +658,15 @@ public class FastQParseMain {
 			logWriter.println("% Reads Removed: " + DECIMAL_FORMAT.format((double)undeterminedDNA.sum() / (double)totalDNAProcessed.sum()));
 			logWriter.println("Total Number of BP: " + DECIMAL_FORMAT.format(baseCount.sum()));
 		}else if(mode == Mode.SIM_READS){
-			readSample();
-			if(simUMI)
-				simUMIReads();
-			else
-				simReads();
+			if(simMerging){
+				simMergingReads();
+			}else{
+				readSample();
+				if(simUMI)
+					simUMIReads();
+				else
+					simReads();
+			}
 		}
 	}
 	
@@ -697,11 +702,87 @@ public class FastQParseMain {
 		reader.close();
 	}
 	
+	private void simMergingReads() throws Exception{
+		BufferedWriter inWriterF = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R1.fastq.gz"))));
+		BufferedWriter inWriterR = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R2.fastq.gz"))));
+		BufferedWriter outWriterF = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_merged_R1.fastq.gz"))));
+		
+		long simMerged = 0;
+		
+		for(long i = 0; i < simIter; i++){
+			Random r = new Random();
+			
+			String mergeF;
+			String mergeR;
+			
+			if(r.nextFloat() >= 0.3f){ //have merge location
+				if(r.nextFloat() >= 0.5f){ //have merge location within edit range
+					simMerged++;
+					mergeF = UtilMethods.randSeq(r, (int)editMaxM + r.nextInt(simReadLength - (int)editMaxM) + 1);
+					mergeR = UtilMethods.randEdit(r, UtilMethods.reverseComplement(mergeF), r.nextInt((int)editMaxM + 1), false);
+				}else{ //have merge location outside edit range
+					mergeF = UtilMethods.randSeq(r, (int)editMaxM + r.nextInt(simReadLength - (int)editMaxM) + 1);
+					mergeR = UtilMethods.randEdit(r, UtilMethods.reverseComplement(mergeF), (int)editMaxM + r.nextInt(Math.min((int)editMaxM * 2 + 1, mergeF.length()) - (int)editMaxM), false);
+				}
+			}else{ //no merge location
+				mergeF = "";
+				mergeR = "";
+			}
+			
+			String seqF = UtilMethods.randSeq(r, simReadLength - mergeF.length());
+			String readF = seqF + mergeF;
+			String qualF = UtilMethods.randQuality(r, simReadLength);
+			
+			String seqR = UtilMethods.randSeq(r, simReadLength - mergeR.length());
+			String readR = seqR + mergeR;
+			String qualR = UtilMethods.randQuality(r, simReadLength);
+			
+			String mergedReadF = seqF + mergeF + UtilMethods.reverseComplement(seqR);
+			String mergedQualF = UtilMethods.makeStr('A', mergedReadF.length()); //the real quality values don't really matter
+			
+			inWriterF.write("SIMULATED READ");
+			inWriterF.newLine();
+			inWriterF.write(readF);
+			inWriterF.newLine();
+			inWriterF.write(description2);
+			inWriterF.newLine();
+			inWriterF.write(qualF);
+			inWriterF.newLine();
+			
+			inWriterR.write("SIMULATED READ");
+			inWriterR.newLine();
+			inWriterR.write(readR);
+			inWriterR.newLine();
+			inWriterR.write(description2);
+			inWriterR.newLine();
+			inWriterR.write(qualR);
+			inWriterR.newLine();
+			
+			outWriterF.write("SIMULATED READ");
+			outWriterF.newLine();
+			outWriterF.write(mergedReadF);
+			outWriterF.newLine();
+			outWriterF.write(description2);
+			outWriterF.newLine();
+			outWriterF.write(mergedQualF);
+			outWriterF.newLine();
+		}
+		
+		inWriterF.close();
+		inWriterR.close();
+		outWriterF.close();
+		
+		logWriter.println("Number of Reads: " + DECIMAL_FORMAT.format(simIter));
+		logWriter.println("Number of Reads Merged: " + DECIMAL_FORMAT.format(simMerged));
+	}
+	
 	private void simReads() throws Exception{
 		BufferedWriter inWriterF = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R1.fastq.gz"))));
 		BufferedWriter inWriterR = null;
 		BufferedWriter[] outWriterF = new BufferedWriter[sampleMapF.size()];
 		BufferedWriter[] outWriterR = null;
+		BufferedWriter undeterminedWriterF = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_undetermined_R1.fastq.gz"))));
+		BufferedWriter undeterminedWriterR = null;
 		
 		for(int i = 0; i < sampleMapF.size(); i++){
 			outWriterF[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R1.fastq.gz"))));
@@ -710,6 +791,7 @@ public class FastQParseMain {
 		if(simReversed){
 			inWriterR = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_reads_R2.fastq.gz"))));
 			outWriterR = new BufferedWriter[sampleMapF.size()];
+			undeterminedWriterR = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_undetermined_R2.fastq.gz"))));
 			
 			for(int i = 0; i < sampleMapF.size(); i++){
 				outWriterR[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R2.fastq.gz"))));
@@ -717,19 +799,138 @@ public class FastQParseMain {
 		}
 		
 		long[][] simCounts = new long[sampleMapF.size()][2];
+		long simUndetermined = 0;
 		
 		for(long i = 0; i < simIter; i++){
 			Random r = new Random();
 			
 			int barcode = r.nextInt(sampleMapF.size());
-			simCounts[barcode][0] += simReversed ? 2 : 1;
+			boolean correctF = r.nextFloat() >= 0.1f;
+			boolean correctR = r.nextFloat() >= 0.1f;
+			boolean adapterF = !adaptersF.isEmpty() && r.nextFloat() >= 0.3f;
+			boolean adapterR = simReversed && !adaptersR.isEmpty() && r.nextFloat() >= 0.3f;
+			boolean undetermined = false;
 			
-			String seqF = UtilMethods.randSeq(r, simReadLength);
-			String readF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
-					UtilMethods.randEdit(r, constEnzymesF.get(r.nextInt(constEnzymesF.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqF;
-			if(!adaptersF.isEmpty() && r.nextFloat() < 0.5f){
-				readF += UtilMethods.randEdit(r, adaptersF.get(r.nextInt(adaptersF.size())).str, r.nextInt((int)editMaxA + 1), allowIndelsA);
-				simCounts[barcode][1]++;
+			String seqF = null;
+			String readF = null;
+			String seqR = null;
+			String readR = null;
+			
+			if(correctF && (!simReversed || correctR)){ //both forwards and reversed are correct, or forwards is correct for single end
+				simCounts[barcode][0] += simReversed ? 2 : 1;
+				
+				seqF = UtilMethods.randSeq(r, simReadLength);
+				readF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
+						UtilMethods.randEdit(r, constEnzymesF.get(r.nextInt(constEnzymesF.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqF;
+				
+				if(simReversed){
+					seqR = UtilMethods.randSeq(r, simReadLength);
+					readR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
+							UtilMethods.randEdit(r, constEnzymesR.get(r.nextInt(constEnzymesR.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqR;
+				}
+			}else if(correctF){ //forwards is correct, reversed is not
+				simUndetermined += 2;
+				undetermined = true;
+				
+				seqF = UtilMethods.randSeq(r, simReadLength);
+				readF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
+						UtilMethods.randEdit(r, constEnzymesF.get(r.nextInt(constEnzymesF.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqF;
+				
+				seqR = UtilMethods.randSeq(r, simReadLength);
+				String randBarcode;
+				String randEnzyme;
+				if(r.nextFloat() < 0.5f){ //error in barcode
+					randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode),
+							(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode)).length()) - (int)editMaxB), allowIndelsB);
+					randEnzyme = UtilMethods.randEdit(r, constEnzymesR.get(r.nextInt(constEnzymesR.size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
+				}else{ //error in enzyme
+					randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+					int enzyme = r.nextInt(constEnzymesR.size());
+					randEnzyme = UtilMethods.randEdit(r, constEnzymesR.get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, constEnzymesR.get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+				}
+				readR = randBarcode + randEnzyme + seqR;
+			}else if(simReversed && correctR){ //reversed is correct, forwards is not
+				simUndetermined += 2;
+				undetermined = true;
+				
+				seqF = UtilMethods.randSeq(r, simReadLength);
+				String randBarcode;
+				String randEnzyme;
+				if(r.nextFloat() < 0.5f){ //error in barcode
+					randBarcode = UtilMethods.randEdit(r, sampleDNAF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleDNAF.get(barcode).length()) - (int)editMaxB), allowIndelsB);
+					randEnzyme = UtilMethods.randEdit(r, constEnzymesF.get(r.nextInt(constEnzymesF.size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
+				}else{ //error in enzyme
+					randBarcode = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+					int enzyme = r.nextInt(constEnzymesF.size());
+					randEnzyme = UtilMethods.randEdit(r, constEnzymesF.get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, constEnzymesF.get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+				}
+				readF = randBarcode + randEnzyme + seqF;
+				
+				seqR = UtilMethods.randSeq(r, simReadLength);
+				readR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
+						UtilMethods.randEdit(r, constEnzymesR.get(r.nextInt(constEnzymesR.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqR;
+			}else{ //forwards is not correct, reversed could be correct
+				simUndetermined += simReversed ? 2 : 1;
+				undetermined = true;
+				
+				seqF = UtilMethods.randSeq(r, simReadLength);
+				String randBarcode;
+				String randEnzyme;
+				if(r.nextFloat() < 0.5f){ //error in barcode
+					randBarcode = UtilMethods.randEdit(r, sampleDNAF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleDNAF.get(barcode).length()) - (int)editMaxB), allowIndelsB);
+					randEnzyme = UtilMethods.randEdit(r, constEnzymesF.get(r.nextInt(constEnzymesF.size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
+				}else{ //error in enzyme
+					randBarcode = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+					int enzyme = r.nextInt(constEnzymesF.size());
+					randEnzyme = UtilMethods.randEdit(r, constEnzymesF.get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, constEnzymesF.get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+				}
+				readF = randBarcode + randEnzyme + seqF;
+				
+				if(simReversed){
+					seqR = UtilMethods.randSeq(r, simReadLength);
+					if(r.nextFloat() < 0.5f){ //error in barcode
+						randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode),
+								(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode)).length()) - (int)editMaxB), allowIndelsB);
+						randEnzyme = UtilMethods.randEdit(r, constEnzymesR.get(r.nextInt(constEnzymesR.size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
+					}else{ //error in enzyme
+						randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+						int enzyme = r.nextInt(constEnzymesR.size());
+						randEnzyme = UtilMethods.randEdit(r, constEnzymesR.get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, constEnzymesR.get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+					}
+					readR = randBarcode + randEnzyme + seqR;
+				}
+			}
+			
+			if(adapterF){
+				if(r.nextFloat() < 0.5f){ //correct
+					simCounts[barcode][1]++;
+					int adapter = r.nextInt(adaptersF.size());
+					readF += UtilMethods.randEdit(r, adaptersF.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersF.get(adapter).str.length()) + r.nextInt(adaptersF.get(adapter).str.length() - Math.min(minOverlapA, adaptersF.get(adapter).str.length()) + 1)), r.nextInt((int)editMaxA + 1), allowIndelsA);
+				}else{ //wrong
+					int adapter = r.nextInt(adaptersF.size());
+					if(r.nextFloat() < 0.5f){ //length less that minimum overlap
+						readF += UtilMethods.randEdit(r, adaptersF.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersF.get(adapter).str.length()) - 1), r.nextInt((int)editMaxA + 1), allowIndelsA);
+					}else{ //error in adapter
+						readF += UtilMethods.randEdit(r, adaptersF.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersF.get(adapter).str.length()) + r.nextInt(adaptersF.get(adapter).str.length() - Math.min(minOverlapA, adaptersF.get(adapter).str.length()) + 1)),
+								r.nextInt((int)editMaxA + r.nextInt(Math.min((int)editMaxA * 2 + 1, adaptersF.get(adapter).str.length()) - (int)editMaxA)), allowIndelsA);
+					}
+				}
+			}
+			
+			if(adapterR){
+				if(r.nextFloat() < 0.5f){ //correct
+					simCounts[barcode][1]++;
+					int adapter = r.nextInt(adaptersR.size());
+					readR += UtilMethods.randEdit(r, adaptersR.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersR.get(adapter).str.length()) + r.nextInt(adaptersR.get(adapter).str.length() - Math.min(minOverlapA, adaptersR.get(adapter).str.length()) + 1)), r.nextInt((int)editMaxA + 1), allowIndelsA);
+				}else{ //wrong
+					int adapter = r.nextInt(adaptersR.size());
+					if(r.nextFloat() < 0.5f){ //length less that minimum overlap
+						readR += UtilMethods.randEdit(r, adaptersR.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersR.get(adapter).str.length()) - 1), r.nextInt((int)editMaxA + 1), allowIndelsA);
+					}else{ //error in adapter
+						readR += UtilMethods.randEdit(r, adaptersR.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersR.get(adapter).str.length()) + r.nextInt(adaptersR.get(adapter).str.length() - Math.min(minOverlapA, adaptersR.get(adapter).str.length()) + 1)),
+								r.nextInt((int)editMaxA + r.nextInt(Math.min((int)editMaxA * 2 + 1, adaptersR.get(adapter).str.length()) - (int)editMaxA)), allowIndelsA);
+					}
+				}
 			}
 			
 			inWriterF.write("SIMULATED READ");
@@ -741,24 +942,27 @@ public class FastQParseMain {
 			inWriterF.write(UtilMethods.makeStr('A', readF.length()));
 			inWriterF.newLine();
 			
-			outWriterF[barcode].write("SIMULATED READ");
-			outWriterF[barcode].newLine();
-			outWriterF[barcode].write(seqF);
-			outWriterF[barcode].newLine();
-			outWriterF[barcode].write(description2);
-			outWriterF[barcode].newLine();
-			outWriterF[barcode].write(UtilMethods.makeStr('A', seqF.length()));
-			outWriterF[barcode].newLine();
+			if(undetermined){
+				undeterminedWriterF.write("SIMULATED READ");
+				undeterminedWriterF.newLine();
+				undeterminedWriterF.write(readF);
+				undeterminedWriterF.newLine();
+				undeterminedWriterF.write(description2);
+				undeterminedWriterF.newLine();
+				undeterminedWriterF.write(UtilMethods.makeStr('A', readF.length()));
+				undeterminedWriterF.newLine();
+			}else{
+				outWriterF[barcode].write("SIMULATED READ");
+				outWriterF[barcode].newLine();
+				outWriterF[barcode].write(seqF);
+				outWriterF[barcode].newLine();
+				outWriterF[barcode].write(description2);
+				outWriterF[barcode].newLine();
+				outWriterF[barcode].write(UtilMethods.makeStr('A', seqF.length()));
+				outWriterF[barcode].newLine();
+			}
 			
 			if(simReversed){
-				String seqR = UtilMethods.randSeq(r, simReadLength);
-				String readR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) +
-						UtilMethods.randEdit(r, constEnzymesR.get(r.nextInt(constEnzymesR.size())), r.nextInt((int)editMaxB + 1), allowIndelsB) + seqR;
-				if(!adaptersR.isEmpty() && r.nextFloat() < 0.5f){
-					readR += UtilMethods.randEdit(r, adaptersR.get(r.nextInt(adaptersR.size())).str, r.nextInt((int)editMaxA + 1), allowIndelsA);
-					simCounts[barcode][1]++;
-				}
-				
 				inWriterR.write("SIMULATED READ");
 				inWriterR.newLine();
 				inWriterR.write(readR);
@@ -768,23 +972,36 @@ public class FastQParseMain {
 				inWriterR.write(UtilMethods.makeStr('A', readR.length()));
 				inWriterR.newLine();
 				
-				outWriterR[barcode].write("SIMULATED READ");
-				outWriterR[barcode].newLine();
-				outWriterR[barcode].write(seqR);
-				outWriterR[barcode].newLine();
-				outWriterR[barcode].write(description2);
-				outWriterR[barcode].newLine();
-				outWriterR[barcode].write(UtilMethods.makeStr('A', seqR.length()));
-				outWriterR[barcode].newLine();
+				if(undetermined){
+					undeterminedWriterR.write("SIMULATED READ");
+					undeterminedWriterR.newLine();
+					undeterminedWriterR.write(readR);
+					undeterminedWriterR.newLine();
+					undeterminedWriterR.write(description2);
+					undeterminedWriterR.newLine();
+					undeterminedWriterR.write(UtilMethods.makeStr('A', readR.length()));
+					undeterminedWriterR.newLine();
+				}else{
+					outWriterR[barcode].write("SIMULATED READ");
+					outWriterR[barcode].newLine();
+					outWriterR[barcode].write(seqR);
+					outWriterR[barcode].newLine();
+					outWriterR[barcode].write(description2);
+					outWriterR[barcode].newLine();
+					outWriterR[barcode].write(UtilMethods.makeStr('A', seqR.length()));
+					outWriterR[barcode].newLine();
+				}
 			}
 		}
 		
 		inWriterF.close();
+		undeterminedWriterF.close();
 		for(int i = 0; i < sampleMapF.size(); i++){
 			outWriterF[i].close();
 		}
 		if(simReversed){
 			inWriterR.close();
+			undeterminedWriterR.close();
 			for(int i = 0; i < sampleMapF.size(); i++){
 				outWriterR[i].close();
 			}
@@ -792,8 +1009,9 @@ public class FastQParseMain {
 		
 		logWriter.println("Sample\tReads\tAdapters");
 		for(int i = 0; i < sampleMapF.size(); i++){
-			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + simCounts[i][0] + "\t" + simCounts[i][1]);
+			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + DECIMAL_FORMAT.format(simCounts[i][0]) + "\t" + DECIMAL_FORMAT.format(simCounts[i][1]));
 		}
+		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined) + "\t0");
 	}
 	
 	private void simUMIReads() throws Exception{
@@ -805,6 +1023,10 @@ public class FastQParseMain {
 		BufferedWriter[] outWriterF2 = new BufferedWriter[sampleMapF.size()];
 		BufferedWriter[] outWriterR = null;
 		BufferedWriter[] outWriterR2 = null;
+		BufferedWriter undeterminedWriterF = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_undetermined_R1.fastq.gz"))));
+		BufferedWriter undeterminedWriterF2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_index_undetermined_R1.fastq.gz"))));
+		BufferedWriter undeterminedWriterR = null;
+		BufferedWriter undeterminedWriterR2 = null;
 		
 		for(int i = 0; i < sampleMapF.size(); i++){
 			outWriterF[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R1.fastq.gz"))));
@@ -816,6 +1038,8 @@ public class FastQParseMain {
 			inWriterR2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "simulated_indexes_R2.fastq.gz"))));
 			outWriterR = new BufferedWriter[sampleMapF.size()];
 			outWriterR2 = new BufferedWriter[sampleMapF.size()];
+			undeterminedWriterR = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_undetermined_R2.fastq.gz"))));
+			undeterminedWriterR2 = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_index_undetermined_R2.fastq.gz"))));
 			
 			for(int i = 0; i < sampleMapF.size(); i++){
 				outWriterR[i] = new BufferedWriter(new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(outputDir + "results" + File.separatorChar + "sim_sample_" + sampleMapF.get(sampleDNAF.get(i)) + "_R2.fastq.gz"))));
@@ -824,15 +1048,61 @@ public class FastQParseMain {
 		}
 		
 		long[][] simCounts = new long[sampleMapF.size()][1];
+		long simUndetermined = 0;
 		
 		for(long i = 0; i < simIter; i++){
 			Random r = new Random();
 			
 			int barcode = r.nextInt(sampleMapF.size());
-			simCounts[barcode][0] += simReversed ? 2 : 1;
+			boolean correctF = r.nextFloat() >= 0.1f;
+			boolean correctR = r.nextFloat() >= 0.1f;
+			boolean undetermined = false;
 			
-			String readF = UtilMethods.randSeq(r, simReadLength);
-			String indexF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+			String readF = null;
+			String indexF = null;
+			String readR = null;
+			String indexR = null;
+			
+			if(correctF && (!simReversed || correctR)){
+				simCounts[barcode][0] += simReversed ? 2 : 1;
+				
+				readF = UtilMethods.randSeq(r, simReadLength);
+				indexF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+				
+				if(simReversed){
+					readR = UtilMethods.randSeq(r, simReadLength);
+					indexR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+				}
+			}else if(correctF){
+				simUndetermined += 2;
+				undetermined = true;
+				
+				readF = UtilMethods.randSeq(r, simReadLength);
+				indexF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+				
+				readR = UtilMethods.randSeq(r, simReadLength);
+				indexR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode),
+						(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode)).length()) - (int)editMaxB), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+			}else if(simReversed && correctR){
+				simUndetermined += 2;
+				undetermined = true;
+				
+				readF = UtilMethods.randSeq(r, simReadLength);
+				indexF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleDNAF.get(barcode).length()) - (int)editMaxB), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+				
+				readR = UtilMethods.randSeq(r, simReadLength);
+				indexR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+			}else{
+				simUndetermined += simReversed ? 2 : 1;
+				undetermined = true;
+				
+				readF = UtilMethods.randSeq(r, simReadLength);
+				indexF = UtilMethods.randEdit(r, sampleDNAF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleDNAF.get(barcode).length()) - (int)editMaxB), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+				
+				readR = UtilMethods.randSeq(r, simReadLength);
+				indexR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode),
+						(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode)).length()) - (int)editMaxB), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
+			}
 			
 			inWriterF.write("SIMULATED READ");
 			inWriterF.newLine();
@@ -852,28 +1122,45 @@ public class FastQParseMain {
 			inWriterF2.write(UtilMethods.makeStr('A', indexF.length()));
 			inWriterF2.newLine();
 			
-			outWriterF[barcode].write("SIMULATED READ");
-			outWriterF[barcode].newLine();
-			outWriterF[barcode].write(readF);
-			outWriterF[barcode].newLine();
-			outWriterF[barcode].write(description2);
-			outWriterF[barcode].newLine();
-			outWriterF[barcode].write(UtilMethods.makeStr('A', readF.length()));
-			outWriterF[barcode].newLine();
-			
-			outWriterF2[barcode].write("SIMULATED INDEX");
-			outWriterF2[barcode].newLine();
-			outWriterF2[barcode].write(indexF);
-			outWriterF2[barcode].newLine();
-			outWriterF2[barcode].write(description2);
-			outWriterF2[barcode].newLine();
-			outWriterF2[barcode].write(UtilMethods.makeStr('A', indexF.length()));
-			outWriterF2[barcode].newLine();
+			if(undetermined){
+				undeterminedWriterF.write("SIMULATED READ");
+				undeterminedWriterF.newLine();
+				undeterminedWriterF.write(readF);
+				undeterminedWriterF.newLine();
+				undeterminedWriterF.write(description2);
+				undeterminedWriterF.newLine();
+				undeterminedWriterF.write(UtilMethods.makeStr('A', readF.length()));
+				undeterminedWriterF.newLine();
+				
+				undeterminedWriterF2.write("SIMULATED INDEX");
+				undeterminedWriterF2.newLine();
+				undeterminedWriterF2.write(indexF);
+				undeterminedWriterF2.newLine();
+				undeterminedWriterF2.write(description2);
+				undeterminedWriterF2.newLine();
+				undeterminedWriterF2.write(UtilMethods.makeStr('A', indexF.length()));
+				undeterminedWriterF2.newLine();
+			}else{
+				outWriterF[barcode].write("SIMULATED READ");
+				outWriterF[barcode].newLine();
+				outWriterF[barcode].write(readF);
+				outWriterF[barcode].newLine();
+				outWriterF[barcode].write(description2);
+				outWriterF[barcode].newLine();
+				outWriterF[barcode].write(UtilMethods.makeStr('A', readF.length()));
+				outWriterF[barcode].newLine();
+				
+				outWriterF2[barcode].write("SIMULATED INDEX");
+				outWriterF2[barcode].newLine();
+				outWriterF2[barcode].write(indexF);
+				outWriterF2[barcode].newLine();
+				outWriterF2[barcode].write(description2);
+				outWriterF2[barcode].newLine();
+				outWriterF2[barcode].write(UtilMethods.makeStr('A', indexF.length()));
+				outWriterF2[barcode].newLine();
+			}
 			
 			if(simReversed){
-				String readR = UtilMethods.randSeq(r, simReadLength);
-				String indexR = UtilMethods.randEdit(r, hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
-				
 				inWriterR.write("SIMULATED READ");
 				inWriterR.newLine();
 				inWriterR.write(readR);
@@ -892,28 +1179,50 @@ public class FastQParseMain {
 				inWriterR2.write(UtilMethods.makeStr('A', indexR.length()));
 				inWriterR2.newLine();
 				
-				outWriterR[barcode].write("SIMULATED READ");
-				outWriterR[barcode].newLine();
-				outWriterR[barcode].write(readR);
-				outWriterR[barcode].newLine();
-				outWriterR[barcode].write(description2);
-				outWriterR[barcode].newLine();
-				outWriterR[barcode].write(UtilMethods.makeStr('A', readR.length()));
-				outWriterR[barcode].newLine();
-				
-				outWriterR2[barcode].write("SIMULATED INDEX");
-				outWriterR2[barcode].newLine();
-				outWriterR2[barcode].write(indexR);
-				outWriterR2[barcode].newLine();
-				outWriterR2[barcode].write(description2);
-				outWriterR2[barcode].newLine();
-				outWriterR2[barcode].write(UtilMethods.makeStr('A', indexR.length()));
-				outWriterR2[barcode].newLine();
+				if(undetermined){
+					undeterminedWriterR.write("SIMULATED READ");
+					undeterminedWriterR.newLine();
+					undeterminedWriterR.write(readR);
+					undeterminedWriterR.newLine();
+					undeterminedWriterR.write(description2);
+					undeterminedWriterR.newLine();
+					undeterminedWriterR.write(UtilMethods.makeStr('A', readR.length()));
+					undeterminedWriterR.newLine();
+					
+					undeterminedWriterR2.write("SIMULATED INDEX");
+					undeterminedWriterR2.newLine();
+					undeterminedWriterR2.write(indexR);
+					undeterminedWriterR2.newLine();
+					undeterminedWriterR2.write(description2);
+					undeterminedWriterR2.newLine();
+					undeterminedWriterR2.write(UtilMethods.makeStr('A', indexR.length()));
+					undeterminedWriterR2.newLine();
+				}else{
+					outWriterR[barcode].write("SIMULATED READ");
+					outWriterR[barcode].newLine();
+					outWriterR[barcode].write(readR);
+					outWriterR[barcode].newLine();
+					outWriterR[barcode].write(description2);
+					outWriterR[barcode].newLine();
+					outWriterR[barcode].write(UtilMethods.makeStr('A', readR.length()));
+					outWriterR[barcode].newLine();
+					
+					outWriterR2[barcode].write("SIMULATED INDEX");
+					outWriterR2[barcode].newLine();
+					outWriterR2[barcode].write(indexR);
+					outWriterR2[barcode].newLine();
+					outWriterR2[barcode].write(description2);
+					outWriterR2[barcode].newLine();
+					outWriterR2[barcode].write(UtilMethods.makeStr('A', indexR.length()));
+					outWriterR2[barcode].newLine();
+				}
 			}
 		}
 		
 		inWriterF.close();
 		inWriterF2.close();
+		undeterminedWriterF.close();
+		undeterminedWriterF2.close();
 		for(int i = 0; i < sampleMapF.size(); i++){
 			outWriterF[i].close();
 			outWriterF2[i].close();
@@ -921,6 +1230,8 @@ public class FastQParseMain {
 		if(simReversed){
 			inWriterR.close();
 			inWriterR2.close();
+			undeterminedWriterR.close();
+			undeterminedWriterR2.close();
 			for(int i = 0; i < sampleMapF.size(); i++){
 				outWriterR[i].close();
 				outWriterR2[i].close();
@@ -929,8 +1240,9 @@ public class FastQParseMain {
 		
 		logWriter.println("Sample\tReads");
 		for(int i = 0; i < sampleMapF.size(); i++){
-			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + simCounts[i][0]);
+			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + DECIMAL_FORMAT.format(simCounts[i][0]));
 		}
+		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined));
 	}
 	
 	private ConcurrentLinkedQueue<Strings> demultiplexFile() throws Exception{
@@ -1001,6 +1313,7 @@ public class FastQParseMain {
 					(removeDNAWithNPercent < 0.0 && UtilMethods.countN(read.readF[1]) <= 0 && (inputFile2 == null || UtilMethods.countN(read.readR[1]) <= 0))){
 				int barcodeIndex = -1;
 				int barcodeEnd = -1;
+				int barcodeLength = 0;
 				int enzymeEnd = -1;
 				int barcodeEnd2 = -1;
 				int enzymeEnd2 = -1;
@@ -1030,6 +1343,7 @@ public class FastQParseMain {
 								}
 								if(!enzymeMatches.isEmpty()){
 									int tempBarcodeEnd2 = -1;
+									int tempBarcodeLength2 = 0;
 									int tempEnzymeEnd2 = -1;
 									if(inputFile2 != null && checkReversedReads){
 										int minEdit2 = Integer.MAX_VALUE;
@@ -1054,8 +1368,9 @@ public class FastQParseMain {
 															(probB < 0.0 && allowIndelsB ? (editMaxB < 0.0 ? (int)(-editMaxB * constEnzymesR.get(rj).length()) : (int)editMaxB) : 0)), read.readR[3], constEnzymesR.get(rj), null, probB, minOverlapB, wildcard);
 												}
 												if(!rEnzymeMatches.isEmpty()){
-													if(rMatches.get(ri).edits <= minEdit2 && (rMatches.get(ri).edits < minEdit2 || rMatches.get(ri).end + 1 > tempBarcodeEnd2)){
+													if(rMatches.get(ri).edits <= minEdit2 && (rMatches.get(ri).edits < minEdit2 || rMatches.get(ri).length > tempBarcodeLength2)){
 														tempBarcodeEnd2 = rMatches.get(ri).end + 1;
+														tempBarcodeLength2 = rMatches.get(ri).length;
 														tempEnzymeEnd2 = rEnzymeMatches.get(rEnzymeMatches.size() - 1).end + 1;
 														minEdit2 = rMatches.get(ri).edits;
 														break;
@@ -1067,9 +1382,10 @@ public class FastQParseMain {
 									
 									if(inputFile2 == null || !checkReversedReads || tempEnzymeEnd2 != -1){
 										isMatch = true;
-										if(matches.get(j).edits <= minEdit && (matches.get(j).edits < minEdit || matches.get(j).end + 1 > barcodeEnd)){
+										if(matches.get(j).edits <= minEdit && (matches.get(j).edits < minEdit || matches.get(j).length > barcodeLength)){
 											barcodeIndex = i;
 											barcodeEnd = matches.get(j).end + 1;
+											barcodeLength = matches.get(j).length;
 											enzymeEnd = enzymeMatches.get(enzymeMatches.size() - 1).end + 1;
 											if(inputFile2 != null){
 												if(checkReversedReads){
@@ -2555,30 +2871,14 @@ public class FastQParseMain {
 					editMaxB = Double.parseDouble(args[++i]);
 				}else if(args[i].equals("-eA")){
 					editMaxA = Double.parseDouble(args[++i]);
-				}else if(args[i].equals("-a")){
-					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
-						if(args[i + 1].startsWith("^")){
-							adaptersF.add(new Adapter(args[i + 1].substring(1), true, true));
-						}else{
-							adaptersF.add(new Adapter(args[i + 1], true, false));
-						}
-						i++;
-					}
+				}else if(args[i].equals("-eM")){
+					editMaxM = Double.parseDouble(args[++i]);
 				}else if(args[i].equals("-A")){
 					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						if(args[i + 1].endsWith("$")){
 							adaptersF.add(new Adapter(args[i + 1].substring(0, args[i + 1].length() - 1), false, true));
 						}else{
 							adaptersF.add(new Adapter(args[i + 1], false, false));
-						}
-						i++;
-					}
-				}else if(args[i].equals("-z")){
-					while(i + 1 < args.length && !args[i + 1].startsWith("-")){
-						if(args[i + 1].startsWith("^")){
-							adaptersR.add(new Adapter(args[i + 1].substring(1), true, true));
-						}else{
-							adaptersR.add(new Adapter(args[i + 1], true, false));
 						}
 						i++;
 					}
@@ -2600,6 +2900,9 @@ public class FastQParseMain {
 					simUMI = true;
 				}else if(args[i].equals("--reversed")){
 					simReversed = true;
+				}else if(args[i].equals("--merging")){
+					simMerging = true;
+					simReversed = true;
 				}else if(args[i].equals("--iter")){
 					simIter = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--len")){
@@ -2608,6 +2911,8 @@ public class FastQParseMain {
 					allowIndelsB = true;
 				}else if(args[i].equals("-iA")){
 					allowIndelsA = true;
+				}else if(args[i].equals("-oA")){
+					minOverlapA = Integer.parseInt(args[++i]);
 				}
 			}
 			

@@ -133,6 +133,11 @@ public class UtilMethods {
 		return (quality + '!' < '!') ? '!' : '~';
 	}
 	
+	//picks a random quality value (higher)
+	public static char randQualityChar(Random r){
+		return (char)('0' + r.nextInt('A' - '0' + 1));
+	}
+	
 	//compress base pairs into 3 bits each
 	public static BitSet toBit(String s){
 		BitSet set = new BitSet(s.length() * 3);
@@ -673,7 +678,15 @@ public class UtilMethods {
 	public static String randSeq(Random r, int length){
 		char[] res = new char[length];
 		for(int i = 0; i < length; i++){
-			res[i] = bp[r.nextInt(bp.length)];
+			res[i] = bp[r.nextInt(bp.length - 1)]; //no 'N' base pairs!
+		}
+		return new String(res);
+	}
+	
+	public static String randQuality(Random r, int length){
+		char[] res = new char[length];
+		for(int i = 0; i < length; i++){
+			res[i] = randQualityChar(r);
 		}
 		return new String(res);
 	}
@@ -681,13 +694,13 @@ public class UtilMethods {
 	public static String randEdit(Random r, String s, int edit, boolean indels){
 		StringBuilder b = new StringBuilder(s);
 		for(int i = 0; i < edit; i++){
-			int idx = r.nextInt(s.length());
+			int idx = r.nextInt(b.length());
 			int mode = indels ? r.nextInt(3) : 0;
 			
 			if(mode == 0){
-				b.setCharAt(idx, bp[r.nextInt(bp.length)]);
+				b.setCharAt(idx, bp[r.nextInt(bp.length - 1)]);
 			}else if(mode == 1){
-				b.insert(idx, bp[r.nextInt(bp.length)]);
+				b.insert(idx, bp[r.nextInt(bp.length - 1)]);
 			}else{
 				b.deleteCharAt(idx);
 			}
