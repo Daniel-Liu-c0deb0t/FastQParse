@@ -1012,6 +1012,7 @@ public class FastQParseMain {
 			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + DECIMAL_FORMAT.format(simCounts[i][0]) + "\t" + DECIMAL_FORMAT.format(simCounts[i][1]));
 		}
 		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined) + "\t0");
+		logWriter.println("Number of Reads: " + DECIMAL_FORMAT.format(simIter));
 	}
 	
 	private void simUMIReads() throws Exception{
@@ -1243,6 +1244,7 @@ public class FastQParseMain {
 			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + DECIMAL_FORMAT.format(simCounts[i][0]));
 		}
 		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined));
+		logWriter.println("Number of Reads: " + DECIMAL_FORMAT.format(simIter));
 	}
 	
 	private ConcurrentLinkedQueue<Strings> demultiplexFile() throws Exception{
@@ -2593,6 +2595,8 @@ public class FastQParseMain {
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						probM = Double.parseDouble(args[++i]);
 					}
+				}else{
+					throw new Exception("Command not supported: " + args[i]);
 				}
 			}
 			boolean isDirClear = false;
@@ -2663,6 +2667,8 @@ public class FastQParseMain {
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("--printduplicate")){
 					printDuplicateInterval = Long.parseLong(args[++i]);
+				}else{
+					throw new Exception("Command not supported: " + args[i]);
 				}
 			}
 			if(outputDir == null){
@@ -2720,6 +2726,8 @@ public class FastQParseMain {
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						probM = Double.parseDouble(args[++i]);
 					}
+				}else{
+					throw new Exception("Command not supported: " + args[i]);
 				}
 			}
 			if(outputDir == null){
@@ -2834,6 +2842,8 @@ public class FastQParseMain {
 					if(i + 1 < args.length && !args[i + 1].startsWith("-")){
 						probA = Double.parseDouble(args[++i]);
 					}
+				}else{
+					throw new Exception("Command not supported: " + args[i]);
 				}
 			}
 			if(outputDir == null){
@@ -2913,6 +2923,8 @@ public class FastQParseMain {
 					allowIndelsA = true;
 				}else if(args[i].equals("-oA")){
 					minOverlapA = Integer.parseInt(args[++i]);
+				}else{
+					throw new Exception("Command not supported: " + args[i]);
 				}
 			}
 			
@@ -2927,6 +2939,8 @@ public class FastQParseMain {
 			logWriter = new PrintWriter(new BufferedWriter(new FileWriter(outputDir + "FastQParse_" + Mode.SIM_READS.description2 + ".log"), BUFFER_SIZE_LOG));
 			
 			new FastQParseMain(Mode.SIM_READS);
+		}else{
+			throw new Exception("Command not supported: " + args[0]);
 		}
 		if(logWriter != null){
 			logWriter.close();
