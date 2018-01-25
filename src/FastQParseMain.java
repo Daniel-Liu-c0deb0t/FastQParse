@@ -800,6 +800,8 @@ public class FastQParseMain {
 		
 		long[][] simCounts = new long[sampleMapF.size()][2];
 		long simUndetermined = 0;
+		long simTotalAdapter = 0;
+		long simUndeterminedAdapter = 0;
 		
 		for(long i = 0; i < simIter; i++){
 			Random r = new Random();
@@ -903,7 +905,12 @@ public class FastQParseMain {
 			
 			if(adapterF){
 				if(r.nextFloat() < 0.5f){ //correct
-					simCounts[barcode][1]++;
+					simTotalAdapter++;
+					if(undetermined)
+						simUndeterminedAdapter++;
+					else
+						simCounts[barcode][1]++;
+					
 					int adapter = r.nextInt(adaptersF.size());
 					readF += UtilMethods.randEdit(r, adaptersF.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersF.get(adapter).str.length()) + r.nextInt(adaptersF.get(adapter).str.length() - Math.min(minOverlapA, adaptersF.get(adapter).str.length()) + 1)), r.nextInt((int)editMaxA + 1), allowIndelsA);
 				}else{ //wrong
@@ -919,7 +926,12 @@ public class FastQParseMain {
 			
 			if(adapterR){
 				if(r.nextFloat() < 0.5f){ //correct
-					simCounts[barcode][1]++;
+					simTotalAdapter++;
+					if(undetermined)
+						simUndeterminedAdapter++;
+					else
+						simCounts[barcode][1]++;
+					
 					int adapter = r.nextInt(adaptersR.size());
 					readR += UtilMethods.randEdit(r, adaptersR.get(adapter).str.substring(0, Math.min(minOverlapA, adaptersR.get(adapter).str.length()) + r.nextInt(adaptersR.get(adapter).str.length() - Math.min(minOverlapA, adaptersR.get(adapter).str.length()) + 1)), r.nextInt((int)editMaxA + 1), allowIndelsA);
 				}else{ //wrong
@@ -1011,8 +1023,8 @@ public class FastQParseMain {
 		for(int i = 0; i < sampleMapF.size(); i++){
 			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + DECIMAL_FORMAT.format(simCounts[i][0]) + "\t" + DECIMAL_FORMAT.format(simCounts[i][1]));
 		}
-		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined) + "\t0");
-		logWriter.println("Number of Reads: " + DECIMAL_FORMAT.format(simIter));
+		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined) + "\t" + DECIMAL_FORMAT.format(simUndeterminedAdapter));
+		logWriter.println("Total\t" + DECIMAL_FORMAT.format(simIter) + "\t" + DECIMAL_FORMAT.format(simTotalAdapter));
 	}
 	
 	private void simUMIReads() throws Exception{
