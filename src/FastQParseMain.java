@@ -717,7 +717,7 @@ public class FastQParseMain {
 			
 			if(r.nextFloat() >= 0.3f){ //have merge location
 				if(r.nextFloat() >= 0.5f){ //have merge location within edit range
-					simMerged++;
+					simMerged += 2;
 					mergeF = UtilMethods.randSeq(r, (int)editMaxM + r.nextInt(simReadLength - (int)editMaxM) + 1);
 					mergeR = UtilMethods.randEdit(r, UtilMethods.reverseComplement(mergeF), r.nextInt((int)editMaxM + 1), false);
 				}else{ //have merge location outside edit range
@@ -772,7 +772,7 @@ public class FastQParseMain {
 		inWriterR.close();
 		outWriterF.close();
 		
-		logWriter.println("Number of Reads: " + DECIMAL_FORMAT.format(simIter));
+		logWriter.println("Number of Reads: " + DECIMAL_FORMAT.format(simIter * 2));
 		logWriter.println("Number of Reads Merged: " + DECIMAL_FORMAT.format(simMerged));
 	}
 	
@@ -1024,7 +1024,7 @@ public class FastQParseMain {
 			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + DECIMAL_FORMAT.format(simCounts[i][0]) + "\t" + DECIMAL_FORMAT.format(simCounts[i][1]));
 		}
 		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined) + "\t" + DECIMAL_FORMAT.format(simUndeterminedAdapter));
-		logWriter.println("Total\t" + DECIMAL_FORMAT.format(simIter) + "\t" + DECIMAL_FORMAT.format(simTotalAdapter));
+		logWriter.println("Total\t" + DECIMAL_FORMAT.format(simReversed ? simIter * 2 : simIter) + "\t" + DECIMAL_FORMAT.format(simTotalAdapter));
 	}
 	
 	private void simUMIReads() throws Exception{
@@ -1256,7 +1256,7 @@ public class FastQParseMain {
 			logWriter.println(sampleMapF.get(sampleDNAF.get(i)) + "\t" + DECIMAL_FORMAT.format(simCounts[i][0]));
 		}
 		logWriter.println("Undetermined\t" + DECIMAL_FORMAT.format(simUndetermined));
-		logWriter.println("Number of Reads: " + DECIMAL_FORMAT.format(simIter));
+		logWriter.println("Total\t" + DECIMAL_FORMAT.format(simReversed ? simIter * 2 : simIter));
 	}
 	
 	private ConcurrentLinkedQueue<Strings> demultiplexFile() throws Exception{
@@ -2296,7 +2296,8 @@ public class FastQParseMain {
 			//merge the two lines
 			String[] merged = UtilMethods.mergeReads(read.readF[1], read.readF[3], read.readR[1], read.readR[3], editMaxM, probM, wildcard);
 			if(!removeNoMergeReads || merged[0].length() != read.readF[1].length() + read.readR[1].length()){
-				totalReadsMerged.add(2);
+				if(merged[0].length() != read.readF[1].length() + read.readR[1].length())
+					totalReadsMerged.add(2);
 				
 				synchronized(lock){
 					try{

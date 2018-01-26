@@ -235,7 +235,7 @@ public class UtilMethods {
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
 		
 		minOverlap = Math.min(minOverlap, b.length());
-		if(edit >= 0.0){
+		if(edit >= 0.0){ //overlaps with length less than the allowed amount of edits should be avoided
 			minOverlap = Math.max(minOverlap, (int)edit + 1);
 		}
 		a = makeStr('#', b.length() - minOverlap) + a;
