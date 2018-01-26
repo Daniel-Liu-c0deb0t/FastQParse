@@ -214,7 +214,7 @@ public class UtilMethods {
 			}
 		}
 		for(int i = 0; i < b.length(); i++){
-			char c = b.charAt(i);
+			char c = Character.toUpperCase(b.charAt(i));
 			if(wildcard && c == 'N'){
 				for(int j = 0; j < bp.length; j++){
 					res.get(bp[j]).set(i);
@@ -249,7 +249,7 @@ public class UtilMethods {
 			BitVector allSet = new BitVector(b.length()).set(0, b.length());
 			int dist = b.length();
 			for(int i = s; i < e; i++){
-				BitVector m = a.charAt(i) == '#' ? allSet : pm.get(a.charAt(i));
+				BitVector m = a.charAt(i) == '#' ? allSet : pm.get(Character.toUpperCase(a.charAt(i)));
 				BitVector d0 = new BitVector(b.length()).or(m).and(vp).add(vp).xor(vp).or(m).or(vn);
 				BitVector hp = new BitVector(b.length()).or(d0).or(vp).not().or(vn);
 				BitVector hn = new BitVector(b.length()).or(vp).and(d0);
@@ -287,10 +287,10 @@ public class UtilMethods {
 				for(int j = 0; j <= totalEdit; j++){
 					if(j == 0){
 						if(a.charAt(i) != '#')
-							r[0].and(pm.get(a.charAt(i)));
+							r[0].and(pm.get(Character.toUpperCase(a.charAt(i))));
 					}else{
 						BitVector temp = new BitVector(b.length() + 1).or(r[j]);
-						(a.charAt(i) == '#' ? r[j] : r[j].and(pm.get(a.charAt(i)))).or(old);
+						(a.charAt(i) == '#' ? r[j] : r[j].and(pm.get(Character.toUpperCase(a.charAt(i))))).or(old);
 						old = temp;
 					}
 					r[j].leftShift().set(0);
@@ -337,8 +337,8 @@ public class UtilMethods {
 			double likelihoodRandom = 1.0;
 			double likelihoodMatch = 1.0;
 			for(int j = Math.max(i - b.length() + 1, 0); j <= i; j++){
-				char x = a.charAt(j);
-				char y = b.charAt(b.length() - 1 - (i - j));
+				char x = Character.toUpperCase(a.charAt(j));
+				char y = Character.toUpperCase(b.charAt(b.length() - 1 - (i - j)));
 				double ex = toError(qA.charAt(j));
 				double ey = qB == null ? 0.0 : toError(qB.charAt(b.length() - 1 - (i - j)));
 				if(qB == null){
@@ -477,7 +477,7 @@ public class UtilMethods {
 					sb1.append(s1.charAt(i));
 					sb2.append(q1.charAt(i));
 				}else if(i < Math.min(s1.length(), start + s2.length())){
-					if((wildcard && (Character.toUpperCase(s1.charAt(i)) == 'N' || Character.toUpperCase(s2.charAt(i - start)) == 'N')) || s1.charAt(i) == s2.charAt(i - start)){
+					if((wildcard && (Character.toUpperCase(s1.charAt(i)) == 'N' || Character.toUpperCase(s2.charAt(i - start)) == 'N')) || Character.toUpperCase(s1.charAt(i)) == Character.toUpperCase(s2.charAt(i - start))){
 						sb1.append(s1.charAt(i));
 						sb2.append(toQualityChar(sameError(toError(q1.charAt(i)), toError(q2.charAt(i - start)))));
 					}else{
