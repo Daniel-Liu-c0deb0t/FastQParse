@@ -81,8 +81,9 @@ public class FastQParseMain {
 	private static ArrayList<Adapter> adaptersF = new ArrayList<Adapter>(); //adapters to remove from forwards reads (file 1)
 	private static ArrayList<Adapter> adaptersR = new ArrayList<Adapter>(); //adapters to remove from reversed reads (file 2)
 	
-	private static int minOverlapA = Integer.MAX_VALUE; //minimum overlap when matching adapters
+	private static int minOverlapA = 3; //minimum overlap when matching adapters
 	private static int minOverlapB = Integer.MAX_VALUE; //minimum overlap when matching barcodes
+	private static int minOverlapM = 3; //minimum overlap when matching for merging location
 	
 	private static boolean trimAlgorithm = false; //false = local average, true = sum
 	private static int qualityTrimQScore1 = 0; //quality under this will be trimmed in quality trimming (from start)
@@ -715,18 +716,18 @@ public class FastQParseMain {
 			String mergeF;
 			String mergeR;
 			
-			if(r.nextFloat() >= 0.3f){ //have merge location
-				if(r.nextFloat() >= 0.5f){ //have merge location within edit range
-					simMerged += 2;
-					mergeF = UtilMethods.randSeq(r, (int)editMaxM + r.nextInt(simReadLength - (int)editMaxM) + 1);
+			if(r.nextFloat() >= 0.5f){ //have merge location within edit range
+				simMerged += 2;
+				mergeF = UtilMethods.randSeq(r, minOverlapM + r.nextInt(simReadLength - minOverlapM + 1));
+				mergeR = UtilMethods.randEdit(r, UtilMethods.reverseComplement(mergeF), r.nextInt((int)editMaxM + 1), false);
+			}else{
+				if(r.nextFloat() >= 0.5f){ //merge length too short
+					mergeF = UtilMethods.randSeq(r, r.nextInt(minOverlapM + 1));
 					mergeR = UtilMethods.randEdit(r, UtilMethods.reverseComplement(mergeF), r.nextInt((int)editMaxM + 1), false);
 				}else{ //have merge location outside edit range
-					mergeF = UtilMethods.randSeq(r, (int)editMaxM + r.nextInt(simReadLength - (int)editMaxM) + 1);
+					mergeF = UtilMethods.randSeq(r, minOverlapM + r.nextInt(simReadLength - minOverlapM + 1));
 					mergeR = UtilMethods.randEdit(r, UtilMethods.reverseComplement(mergeF), (int)editMaxM + r.nextInt(Math.min((int)editMaxM * 2 + 1, mergeF.length()) - (int)editMaxM), false);
 				}
-			}else{ //no merge location
-				mergeF = "";
-				mergeR = "";
 			}
 			
 			String seqF = UtilMethods.randSeq(r, simReadLength - mergeF.length());
@@ -740,7 +741,7 @@ public class FastQParseMain {
 			String mergedReadF = seqF + mergeF + UtilMethods.reverseComplement(seqR);
 			String mergedQualF = UtilMethods.makeStr('A', mergedReadF.length()); //the real quality values don't really matter
 			
-			inWriterF.write("SIMULATED READ");
+			inWriterF.write("@SIMULATED READ");
 			inWriterF.newLine();
 			inWriterF.write(readF);
 			inWriterF.newLine();
@@ -749,7 +750,7 @@ public class FastQParseMain {
 			inWriterF.write(qualF);
 			inWriterF.newLine();
 			
-			inWriterR.write("SIMULATED READ");
+			inWriterR.write("@SIMULATED READ");
 			inWriterR.newLine();
 			inWriterR.write(readR);
 			inWriterR.newLine();
@@ -758,7 +759,7 @@ public class FastQParseMain {
 			inWriterR.write(qualR);
 			inWriterR.newLine();
 			
-			outWriterF.write("SIMULATED READ");
+			outWriterF.write("@SIMULATED READ");
 			outWriterF.newLine();
 			outWriterF.write(mergedReadF);
 			outWriterF.newLine();
@@ -945,7 +946,7 @@ public class FastQParseMain {
 				}
 			}
 			
-			inWriterF.write("SIMULATED READ");
+			inWriterF.write("@SIMULATED READ");
 			inWriterF.newLine();
 			inWriterF.write(readF);
 			inWriterF.newLine();
@@ -955,7 +956,7 @@ public class FastQParseMain {
 			inWriterF.newLine();
 			
 			if(undetermined){
-				undeterminedWriterF.write("SIMULATED READ");
+				undeterminedWriterF.write("@SIMULATED READ");
 				undeterminedWriterF.newLine();
 				undeterminedWriterF.write(readF);
 				undeterminedWriterF.newLine();
@@ -964,7 +965,7 @@ public class FastQParseMain {
 				undeterminedWriterF.write(UtilMethods.makeStr('A', readF.length()));
 				undeterminedWriterF.newLine();
 			}else{
-				outWriterF[barcode].write("SIMULATED READ");
+				outWriterF[barcode].write("@SIMULATED READ");
 				outWriterF[barcode].newLine();
 				outWriterF[barcode].write(seqF);
 				outWriterF[barcode].newLine();
@@ -975,7 +976,7 @@ public class FastQParseMain {
 			}
 			
 			if(simReversed){
-				inWriterR.write("SIMULATED READ");
+				inWriterR.write("@SIMULATED READ");
 				inWriterR.newLine();
 				inWriterR.write(readR);
 				inWriterR.newLine();
@@ -985,7 +986,7 @@ public class FastQParseMain {
 				inWriterR.newLine();
 				
 				if(undetermined){
-					undeterminedWriterR.write("SIMULATED READ");
+					undeterminedWriterR.write("@SIMULATED READ");
 					undeterminedWriterR.newLine();
 					undeterminedWriterR.write(readR);
 					undeterminedWriterR.newLine();
@@ -994,7 +995,7 @@ public class FastQParseMain {
 					undeterminedWriterR.write(UtilMethods.makeStr('A', readR.length()));
 					undeterminedWriterR.newLine();
 				}else{
-					outWriterR[barcode].write("SIMULATED READ");
+					outWriterR[barcode].write("@SIMULATED READ");
 					outWriterR[barcode].newLine();
 					outWriterR[barcode].write(seqR);
 					outWriterR[barcode].newLine();
@@ -1117,7 +1118,7 @@ public class FastQParseMain {
 						(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleDNAR.get(barcode) : sampleDNAF.get(barcode)).length()) - (int)editMaxB), allowIndelsB) + UtilMethods.randSeq(r, randUMILength);
 			}
 			
-			inWriterF.write("SIMULATED READ");
+			inWriterF.write("@SIMULATED READ");
 			inWriterF.newLine();
 			inWriterF.write(readF);
 			inWriterF.newLine();
@@ -1126,7 +1127,7 @@ public class FastQParseMain {
 			inWriterF.write(UtilMethods.makeStr('A', readF.length()));
 			inWriterF.newLine();
 			
-			inWriterF2.write("SIMULATED INDEX");
+			inWriterF2.write("@SIMULATED INDEX");
 			inWriterF2.newLine();
 			inWriterF2.write(indexF);
 			inWriterF2.newLine();
@@ -1136,7 +1137,7 @@ public class FastQParseMain {
 			inWriterF2.newLine();
 			
 			if(undetermined){
-				undeterminedWriterF.write("SIMULATED READ");
+				undeterminedWriterF.write("@SIMULATED READ");
 				undeterminedWriterF.newLine();
 				undeterminedWriterF.write(readF);
 				undeterminedWriterF.newLine();
@@ -1145,7 +1146,7 @@ public class FastQParseMain {
 				undeterminedWriterF.write(UtilMethods.makeStr('A', readF.length()));
 				undeterminedWriterF.newLine();
 				
-				undeterminedWriterF2.write("SIMULATED INDEX");
+				undeterminedWriterF2.write("@SIMULATED INDEX");
 				undeterminedWriterF2.newLine();
 				undeterminedWriterF2.write(indexF);
 				undeterminedWriterF2.newLine();
@@ -1154,7 +1155,7 @@ public class FastQParseMain {
 				undeterminedWriterF2.write(UtilMethods.makeStr('A', indexF.length()));
 				undeterminedWriterF2.newLine();
 			}else{
-				outWriterF[barcode].write("SIMULATED READ");
+				outWriterF[barcode].write("@SIMULATED READ");
 				outWriterF[barcode].newLine();
 				outWriterF[barcode].write(readF);
 				outWriterF[barcode].newLine();
@@ -1163,7 +1164,7 @@ public class FastQParseMain {
 				outWriterF[barcode].write(UtilMethods.makeStr('A', readF.length()));
 				outWriterF[barcode].newLine();
 				
-				outWriterF2[barcode].write("SIMULATED INDEX");
+				outWriterF2[barcode].write("@SIMULATED INDEX");
 				outWriterF2[barcode].newLine();
 				outWriterF2[barcode].write(indexF);
 				outWriterF2[barcode].newLine();
@@ -1174,7 +1175,7 @@ public class FastQParseMain {
 			}
 			
 			if(simReversed){
-				inWriterR.write("SIMULATED READ");
+				inWriterR.write("@SIMULATED READ");
 				inWriterR.newLine();
 				inWriterR.write(readR);
 				inWriterR.newLine();
@@ -1183,7 +1184,7 @@ public class FastQParseMain {
 				inWriterR.write(UtilMethods.makeStr('A', readR.length()));
 				inWriterR.newLine();
 				
-				inWriterR2.write("SIMULATED INDEX");
+				inWriterR2.write("@SIMULATED INDEX");
 				inWriterR2.newLine();
 				inWriterR2.write(indexR);
 				inWriterR2.newLine();
@@ -1193,7 +1194,7 @@ public class FastQParseMain {
 				inWriterR2.newLine();
 				
 				if(undetermined){
-					undeterminedWriterR.write("SIMULATED READ");
+					undeterminedWriterR.write("@SIMULATED READ");
 					undeterminedWriterR.newLine();
 					undeterminedWriterR.write(readR);
 					undeterminedWriterR.newLine();
@@ -1202,7 +1203,7 @@ public class FastQParseMain {
 					undeterminedWriterR.write(UtilMethods.makeStr('A', readR.length()));
 					undeterminedWriterR.newLine();
 					
-					undeterminedWriterR2.write("SIMULATED INDEX");
+					undeterminedWriterR2.write("@SIMULATED INDEX");
 					undeterminedWriterR2.newLine();
 					undeterminedWriterR2.write(indexR);
 					undeterminedWriterR2.newLine();
@@ -1211,7 +1212,7 @@ public class FastQParseMain {
 					undeterminedWriterR2.write(UtilMethods.makeStr('A', indexR.length()));
 					undeterminedWriterR2.newLine();
 				}else{
-					outWriterR[barcode].write("SIMULATED READ");
+					outWriterR[barcode].write("@SIMULATED READ");
 					outWriterR[barcode].newLine();
 					outWriterR[barcode].write(readR);
 					outWriterR[barcode].newLine();
@@ -1220,7 +1221,7 @@ public class FastQParseMain {
 					outWriterR[barcode].write(UtilMethods.makeStr('A', readR.length()));
 					outWriterR[barcode].newLine();
 					
-					outWriterR2[barcode].write("SIMULATED INDEX");
+					outWriterR2[barcode].write("@SIMULATED INDEX");
 					outWriterR2[barcode].newLine();
 					outWriterR2[barcode].write(indexR);
 					outWriterR2[barcode].newLine();
@@ -1579,7 +1580,7 @@ public class FastQParseMain {
 						boolean mergedReads = false;
 						//merge paired-end reads
 						if(mergePairedEnds && inputFile2 != null){
-							String[] merged = UtilMethods.mergeReads(newSequence1, newQuality1, newSequence2, newQuality2, editMaxM, probM, wildcard);
+							String[] merged = UtilMethods.mergeReads(newSequence1, newQuality1, newSequence2, newQuality2, editMaxM, probM, minOverlapM, wildcard);
 							if(merged[0].length() != newSequence1.length() + newSequence2.length()){
 								mergedReads = true;
 							}
@@ -2294,7 +2295,7 @@ public class FastQParseMain {
 				logWriter.flush();
 			}
 			//merge the two lines
-			String[] merged = UtilMethods.mergeReads(read.readF[1], read.readF[3], read.readR[1], read.readR[3], editMaxM, probM, wildcard);
+			String[] merged = UtilMethods.mergeReads(read.readF[1], read.readF[3], read.readR[1], read.readR[3], editMaxM, probM, minOverlapM, wildcard);
 			if(!removeNoMergeReads || merged[0].length() != read.readF[1].length() + read.readR[1].length()){
 				if(merged[0].length() != read.readF[1].length() + read.readR[1].length())
 					totalReadsMerged.add(2);
@@ -2552,6 +2553,8 @@ public class FastQParseMain {
 					minOverlapA = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("-oB")){
 					minOverlapB = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("-oM")){
+					minOverlapM = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--altqtrim")){
 					trimAlgorithm = true;
 					qualityTrimLength = Integer.MAX_VALUE;
@@ -2723,6 +2726,8 @@ public class FastQParseMain {
 				}else if(args[i].equals("-eM")){
 					double d = Double.parseDouble(args[++i]);
 					editMaxM = d < 1.0 ? -d : d;
+				}else if(args[i].equals("-oM")){
+					minOverlapM = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("--printprocessed")){
 					printProcessedInterval = Long.parseLong(args[++i]);
 				}else if(args[i].equals("-w")){
@@ -2936,6 +2941,8 @@ public class FastQParseMain {
 					allowIndelsA = true;
 				}else if(args[i].equals("-oA")){
 					minOverlapA = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("-oM")){
+					minOverlapM = Integer.parseInt(args[++i]);
 				}else{
 					throw new Exception("Command not supported: " + args[i]);
 				}

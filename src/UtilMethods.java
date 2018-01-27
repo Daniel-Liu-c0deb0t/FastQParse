@@ -235,9 +235,6 @@ public class UtilMethods {
 			return new ArrayList<Match>(Arrays.asList(new Match(0, 0, 0)));
 		
 		minOverlap = Math.min(minOverlap, b.length());
-		if(edit >= 0.0){ //overlaps with length less than the allowed amount of edits should be avoided
-			minOverlap = Math.max(minOverlap, (int)edit + 1);
-		}
 		a = makeStr('#', b.length() - minOverlap) + a;
 		e += b.length() - minOverlap;
 		int min = Integer.MAX_VALUE;
@@ -443,14 +440,14 @@ public class UtilMethods {
 	//merge two reads
 	//increase quality if two base pairs are equal
 	//decrease quality if two base pairs are not equal
-	public static String[] mergeReads(String s1, String q1, String s2, String q2, double editMax, double prob, boolean wildcard){
+	public static String[] mergeReads(String s1, String q1, String s2, String q2, double editMax, double prob, int minOverlap, boolean wildcard){
 		s2 = reverseComplement(s2);
 		q2 = reverse(q2);
 		
 		int start = -1;
 		
 		if(prob < 0.0){ //find match with least edit distance
-			ArrayList<Match> matches = searchWithN(s2, 0, s2.length(), s1, editMax, false, false, 1, wildcard, genPatternMasks(s1, false, wildcard));
+			ArrayList<Match> matches = searchWithN(s2, 0, s2.length(), s1, editMax, false, false, minOverlap, wildcard, genPatternMasks(s1, false, wildcard));
 			int minEdits = Integer.MAX_VALUE;
 			int maxLength = 0;
 			
@@ -462,7 +459,7 @@ public class UtilMethods {
 				}
 			}
 		}else{ //probability based matching
-			ArrayList<Match> matches = searchWithProb(s2, 0, s2.length(), q2, s1, q1, prob, 1, wildcard);
+			ArrayList<Match> matches = searchWithProb(s2, 0, s2.length(), q2, s1, q1, prob, minOverlap, wildcard);
 			if(!matches.isEmpty())
 				start = s1.length() - 1 - matches.get(0).end;
 		}
