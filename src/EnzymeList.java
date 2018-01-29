@@ -3,9 +3,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 public class EnzymeList {
-	public static final HashMap<String, ArrayList<String>> enzymes = new HashMap<String, ArrayList<String>>();
+	public static HashMap<String, ArrayList<String>> enzymes = new HashMap<String, ArrayList<String>>();
 	
-	public static void init(){
+	static{ //initializes some common enzymes for demultiplexing
 		enzymes.put("APEKI", new ArrayList<String>(Arrays.asList("CAGC", "CTGC")));
 		enzymes.put("PSTI", new ArrayList<String>(Arrays.asList("TGCAG")));
 		enzymes.put("ECOT22I", new ArrayList<String>(Arrays.asList("TGCAT")));
