@@ -145,8 +145,8 @@ public class FastQParseMain {
 	private ArrayList<String> sampleBarcodeF = new ArrayList<String>(); //names saved twice to keep them in order
 	private ArrayList<String> sampleBarcodeR = new ArrayList<String>();
 	
-	private ArrayList<ArrayList<String>> sampleEnzymesF;
-	private ArrayList<ArrayList<String>> sampleEnzymesR;
+	private ArrayList<ArrayList<String>> sampleEnzymesF = new ArrayList<ArrayList<String>>();
+	private ArrayList<ArrayList<String>> sampleEnzymesR = new ArrayList<ArrayList<String>>();
 	
 	private ArrayList<HashMap<Character, BitVector>> barcodePatternsF;
 	private ArrayList<HashMap<Character, BitVector>> barcodePatternsR;
@@ -2473,8 +2473,8 @@ public class FastQParseMain {
 					}
 				}else if(args[i].equals("-E")){
 					while(i + 2 < args.length && !args[i + 2].startsWith("-")){
-						String name = args[++i];
-						String seq = args[++i];
+						String name = args[++i].toUpperCase();
+						String seq = args[++i].toUpperCase();
 						if(EnzymeList.enzymes.containsKey(name)){
 							EnzymeList.enzymes.get(name).add(seq);
 						}else{
