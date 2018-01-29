@@ -719,7 +719,7 @@ public class FastQParseMain {
 			
 			int barcode = r.nextInt(sampleMapF.size());
 			boolean correctF = r.nextFloat() >= 0.1f;
-			boolean correctR = r.nextFloat() >= 0.1f;
+			boolean correctR = !checkReversedReads || r.nextFloat() >= 0.1f;
 			boolean adapterF = !adaptersF.isEmpty() && r.nextFloat() >= 0.3f;
 			boolean adapterR = simReversed && !adaptersR.isEmpty() && r.nextFloat() >= 0.3f;
 			boolean undetermined = false;
@@ -979,7 +979,7 @@ public class FastQParseMain {
 			
 			int barcode = r.nextInt(sampleMapF.size());
 			boolean correctF = r.nextFloat() >= 0.1f;
-			boolean correctR = r.nextFloat() >= 0.1f;
+			boolean correctR = !checkReversedReads || r.nextFloat() >= 0.1f;
 			boolean undetermined = false;
 			
 			String readF = null;
@@ -2296,6 +2296,8 @@ public class FastQParseMain {
 					minOverlapA = Integer.parseInt(args[++i]);
 				}else if(args[i].equals("-vM")){
 					minOverlapM = Integer.parseInt(args[++i]);
+				}else if(args[i].equals("-R")){
+					checkReversedReads = true;
 				}else{
 					throw new Exception("Command not supported: " + args[i]);
 				}
