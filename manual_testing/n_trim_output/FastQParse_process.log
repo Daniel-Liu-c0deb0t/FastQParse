@@ -1,0 +1,79 @@
+Started on: Mon Jan 29 15:51:42 PST 2018
+Mode: Process Reads
+
+Demultiplex: false
+
+Addition Enzymes: 
+
+Forwards Read File: C:\Users\danie\Desktop\Coding\FastQParse\manual_testing\n_trimming.fastq
+Is Input GZIPPED: false
+
+Output Directory: manual_testing/n_trim_output\
+Is Output GZIPPED: false
+
+Parallel: false
+Parallel Batch Size: 1024
+
+Length of Random UMI: 0
+Only Keep First Duplicate: false
+Only Keep Best Duplicate: false
+Save Duplicates in Separate Files: false
+Save Temporary Files: false
+
+Max Edits for Barcodes/Enzymes: 1.0
+Allow Insertions and Deletions for Barcodes/Enzymes: false
+Probability Based Matching for Barcodes: false
+Minimum Barcode Overlap: 2147483647
+Maximum Offset For Barcodes/Enzymes: 0
+Maximum Offset For Adapters: 0
+Trim Barcode: true
+Trim Enzyme: true
+Check Reversed Reads for Enzymes and Barcodes: false
+Remove Reads With Multiple Barcode Matches: false
+
+Merge Paired-End Reads: false
+Max Edits for Merging Paired-Ends: 1.0
+Probability Based Matching for Merging Paired End Reads: false
+Minimum Merge Location Overlap: 3
+Remove Reads That Are Not Merged: false
+
+Forwards Read Adapters: 
+Max Edits for Adapters: 1.0
+Allow Insertions and Deletions for Adapters: false
+Probability Based Matching for Adapters: false
+Minimum Adapter Overlap: 3
+Remove Reads That Do Not Contain Any Adapters: false
+
+Allow Wildcard Characters: false
+
+Quality Trim Algorithm: Local Average
+5' Quality Trim Score Threshold: 0
+3' Quality Trim Score Threshold: 0
+Quality Trim Length: 1
+Remove Reads That Are Not Quality Trimmed: false
+
+Percentage to Trim Leading and Trailing N By: 0.5
+
+Remove Reads With N: false
+
+Quality Filter Threshold: 0.0
+Quality Filter Algorithm: Average
+
+Minimum Read Length: 0
+Maximum Read Length: 2147483647
+
+Interval to Print Processed Reads: 80,000,000
+Interval to Print Duplicate Reads: 5,000,000
+
+Processing...
+
+
+Processing Completed.
+
+Total Run Time: 00:00:00.042
+
+Number of Lines Processed: 20
+Number of Reads Processed: 5
+Number of Generated Sample Files: 1
+Number of Generated Duplicate Files: 0
+Ended on: Mon Jan 29 15:51:42 PST 2018

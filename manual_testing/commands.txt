@@ -1,0 +1,26 @@
+//Commands for Manual Testing
+//basic tests for corner/obvious cases
+//make sure the file paths are valid
+
+//adapter trimming
+//make sure to also test -a
+
+-r manual_testing/adapter_trimming.fastq -A ATCGGTCA -vA 5 -eA 1 -lA -fA 100 -o manual_testing/adapter_trimming_output
+
+//paired end merging
+
+-r manual_testing/merging_R1.fastq manual_testing/merging_R2.fastq -m -eM 1 -vM 5 -o manual_testing/merging_output
+
+//quality trimming
+//make sure to also test --alt-quality-trim and trimming both sides
+
+-r manual_testing/quality_trimming.fastq -q 10 -o manual_testing/quality_trim_output
+
+//'N' trimming
+
+-r manual_testing/n_trimming.fastq -n -o manual_testing/n_trim_output
+
+//other filtering
+//also test if -N has no parameters
+
+-r manual_testing/other_filtering.fastq --min 10 --max 30 -N 0.25 -Q 20 -o manual_testing/other_filtering_output

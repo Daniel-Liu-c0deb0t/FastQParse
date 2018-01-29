@@ -1,0 +1,20 @@
+@ merge
+AAAAAAAAAAATCGGTCA
++
+!!!!!!!!!!!!!!!!!!
+@ merge, one edit
+AAAAAAAAAAATCGCTCA
++
+!!!!!!!!!!!!!!!!!!
+@ merge
+AAAAAAAAAAATCGGTCA
++
+!!!!!!!!!!!!!!!!!!
+@ merge, too many edits
+AAAAAAAAAAATTTTCCC
++
+!!!!!!!!!!!!!!!!!!
+@ merge, too short
+AAAAAAAAAAAAAAAATC
++
+!!!!!!!!!!!!!!!

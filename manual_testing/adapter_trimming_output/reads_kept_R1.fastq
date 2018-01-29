@@ -1,0 +1,48 @@
+@ 3' adapter, anchored - Correct result: AAAAAAA
+AAAAAAA
++
+-------
+@ 5' adapter, anchored - Correct result: AAAAAAA
+
++
+
+@ 3' adapter, partial overlap - Correct result: AAAAAAAAA
+AAAAAAAA
++
+--------
+@ 5' adapter, partial overlap - Correct result: AAAAAAAA
+CGGTCAAAAAAAAA
++
+--------------
+@ 3' adapter, within the read - Correct result: AAAAAAAAAAAAA
+AAAAAAAAAAAAA
++
+-------------
+@ 5' adapter, within the read - Correct result: AAAAAAAAAAAAAA
+AAAAAAAAAAAAA
++
+-------------
+@ 3' adapter, too short - Correct result: AAAAAAAAAAAATC
+AAAAAAAAAAAATC
++
+--------------
+@ 5' adapter, too short - Correct result: TCAAAAAAAAAAAA
+TCAAAAAAAAAAAA
++
+--------------
+@ 3' adapter, one substitution edit - Correct result: AAAAAAA
+AAAAAAA
++
+-------
+@ 3' adapter, one indel edit - Correct result: AAAAAAA
+AAAAAAA
++
+-------
+@ 3' adapter, too many edits - Correct result: AAAAAAAATTCGGGTC
+AAAAAAAATTCGGGTC
++
+----------------
+@ no adapter - Correct result: AAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAA
++
+--------------------

@@ -1,0 +1,16 @@
+@ too short
+AAAAA
++
+_____
+@ too long
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
++
+________________________________________________
+@ too many N
+ANNNNNNNNNNAAAANNNAANNNN
++
+________________________
+@ low quality
+AAAAAAAAAAAAAAAAAAAAAAAA
++
+!!!!!!!!!!!!!!!!!!!!!!!!
