@@ -28,9 +28,9 @@ import java.util.zip.GZIPOutputStream;
 public class FastQParseMain {
 	private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("###,###.#######"); //standard number format
 	private static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE MMM dd HH:mm:ss zzz yyyy"); //standard date format
-	private static final int BUFFER_SIZE = 1048576; //buffer size for buffered reader/writer
-	private static final int BUFFER_SIZE_GZIP = 1048576; //buffer size for gzip stream
-	private static final int BUFFER_SIZE_LOG = 16384; //buffer size for log/stats files
+	private static final int BUFFER_SIZE = 16384; //buffer size for buffered reader/writer
+	private static final int BUFFER_SIZE_GZIP = 16384; //buffer size for gzip stream
+	private static final int BUFFER_SIZE_LOG = 8192; //buffer size for log/stats files
 	private static final String description2 = "+"; //the second description (3rd line in each read)
 	
 	private static PrintWriter logWriter; //prints to log file
@@ -103,7 +103,7 @@ public class FastQParseMain {
 	private static boolean removeUnmergedReads = false;
 	
 	private static boolean parallel = false; //use parallel streams or not
-	private static int splitBatchSize = 2048; //batch size when using ReadSpliterator
+	private static int splitBatchSize = 1024; //batch size when using ReadSpliterator
 	
 	private static boolean simReversed = false; //generate simulated data
 	private static boolean simUMI = false;
@@ -2228,7 +2228,18 @@ public class FastQParseMain {
 		
 		//read commands and parse them, then call the constructor to start the processing
 		//updates the global variables that contain all the options
-		if(args[0].equals("--simulate")){
+		if(args[0].equals("-h") || args[0].equals("--help")){
+			System.out.println("Help:");
+			System.out.println("For more detailed information, visit https://github.com/Daniel-Liu-c0deb0t/FastQParse/wiki/Commands");
+			System.out.println("\nOtherwise, here are some common commands:");
+			System.out.println("'-r' - Specify one or two files after to either process single end (1 file) or paired end reads (2 files).");
+			System.out.println("'-o' - Specify a directory after to indicate the output directory.");
+			System.out.println("'-s' - Specify a sample info file that contains barcode information. This will enable demultiplexing.");
+			System.out.println("'-m' - Turn on merging paired end reads. Make sure there are two input files, one for forwards reads, and one for reversed reads.");
+			System.out.println("'-a' or '-A' or '-z' or '-Z' - Specify adapter sequences after to trim them as forwards 5', forwards 3', reversed 5' or reversed 3' adapters, respectively.");
+			System.out.println("'-q' - Specify one number after to quality trim the 3' end using that number as the threshold. Specify two numbers to quality trim both ends, using the first number for the 5' end, and the second number for the 3' end.");
+			System.out.println("If specifying more than one parameter per command, separate those parameters with spaces. For example, '-q 10 20' is a valid command.");
+		}else if(args[0].equals("--simulate")){
 			for(int i = 1; i < args.length; i++){
 				if(args[i].equals("-o")){
 					outputDir = args[++i];
