@@ -752,12 +752,18 @@ public class FastQParseMain {
 				seqR = UtilMethods.randSeq(r, simReadLength);
 				String randBarcode;
 				String randEnzyme;
-				if(r.nextFloat() < 0.5f){ //error in barcode
+				int choice = r.nextInt(3);
+				if(choice == 0){ //error in barcode
 					randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode),
 							(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode)).length()) - (int)editMaxB), allowIndelsB);
 					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesR.get(barcode).get(r.nextInt(sampleEnzymesR.get(barcode).size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
-				}else{ //error in enzyme
+				}else if(choice == 1){ //error in enzyme
 					randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+					int enzyme = r.nextInt(sampleEnzymesR.get(barcode).size());
+					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesR.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesR.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+				}else{ //error in both
+					randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode),
+							(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode)).length()) - (int)editMaxB), allowIndelsB);
 					int enzyme = r.nextInt(sampleEnzymesR.get(barcode).size());
 					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesR.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesR.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
 				}
@@ -769,11 +775,16 @@ public class FastQParseMain {
 				seqF = UtilMethods.randSeq(r, simReadLength);
 				String randBarcode;
 				String randEnzyme;
-				if(r.nextFloat() < 0.5f){ //error in barcode
+				int choice = r.nextInt(3);
+				if(choice == 0){ //error in barcode
 					randBarcode = UtilMethods.randEdit(r, sampleBarcodeF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleBarcodeF.get(barcode).length()) - (int)editMaxB), allowIndelsB);
 					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesF.get(barcode).get(r.nextInt(sampleEnzymesF.get(barcode).size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
-				}else{ //error in enzyme
+				}else if(choice == 1){ //error in enzyme
 					randBarcode = UtilMethods.randEdit(r, sampleBarcodeF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+					int enzyme = r.nextInt(sampleEnzymesF.get(barcode).size());
+					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesF.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesF.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+				}else{ //error in both
+					randBarcode = UtilMethods.randEdit(r, sampleBarcodeF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleBarcodeF.get(barcode).length()) - (int)editMaxB), allowIndelsB);
 					int enzyme = r.nextInt(sampleEnzymesF.get(barcode).size());
 					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesF.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesF.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
 				}
@@ -789,11 +800,16 @@ public class FastQParseMain {
 				seqF = UtilMethods.randSeq(r, simReadLength);
 				String randBarcode;
 				String randEnzyme;
-				if(r.nextFloat() < 0.5f){ //error in barcode
+				int choice = r.nextInt(3);
+				if(choice == 0){ //error in barcode
 					randBarcode = UtilMethods.randEdit(r, sampleBarcodeF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleBarcodeF.get(barcode).length()) - (int)editMaxB), allowIndelsB);
 					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesF.get(barcode).get(r.nextInt(sampleEnzymesF.get(barcode).size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
-				}else{ //error in enzyme
+				}else if(choice == 1){ //error in enzyme
 					randBarcode = UtilMethods.randEdit(r, sampleBarcodeF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+					int enzyme = r.nextInt(sampleEnzymesF.get(barcode).size());
+					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesF.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesF.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+				}else{ //error in both
+					randBarcode = UtilMethods.randEdit(r, sampleBarcodeF.get(barcode), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleBarcodeF.get(barcode).length()) - (int)editMaxB), allowIndelsB);
 					int enzyme = r.nextInt(sampleEnzymesF.get(barcode).size());
 					randEnzyme = UtilMethods.randEdit(r, sampleEnzymesF.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesF.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
 				}
@@ -801,12 +817,18 @@ public class FastQParseMain {
 				
 				if(simReversed){
 					seqR = UtilMethods.randSeq(r, simReadLength);
-					if(r.nextFloat() < 0.5f){ //error in barcode
+					choice = r.nextInt(3);
+					if(choice == 0){ //error in barcode
 						randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode),
 								(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode)).length()) - (int)editMaxB), allowIndelsB);
 						randEnzyme = UtilMethods.randEdit(r, sampleEnzymesR.get(barcode).get(r.nextInt(sampleEnzymesR.get(barcode).size())), r.nextInt((int)editMaxB + 1), allowIndelsB);
-					}else{ //error in enzyme
+					}else if(choice == 1){ //error in enzyme
 						randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode), r.nextInt((int)editMaxB + 1), allowIndelsB);
+						int enzyme = r.nextInt(sampleEnzymesR.get(barcode).size());
+						randEnzyme = UtilMethods.randEdit(r, sampleEnzymesR.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesR.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
+					}else{ //error in both
+						randBarcode = UtilMethods.randEdit(r, hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode),
+								(int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, (hasReversedBarcode ? sampleBarcodeR.get(barcode) : sampleBarcodeF.get(barcode)).length()) - (int)editMaxB), allowIndelsB);
 						int enzyme = r.nextInt(sampleEnzymesR.get(barcode).size());
 						randEnzyme = UtilMethods.randEdit(r, sampleEnzymesR.get(barcode).get(enzyme), (int)editMaxB + r.nextInt(Math.min((int)editMaxB * 2 + 1, sampleEnzymesR.get(barcode).get(enzyme).length()) - (int)editMaxB), allowIndelsB);
 					}
