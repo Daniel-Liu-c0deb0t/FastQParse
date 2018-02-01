@@ -3,6 +3,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Random;
 
@@ -698,7 +699,11 @@ public class UtilMethods {
 			int mode = indels ? r.nextInt(3) : 0;
 			
 			if(mode == 0){
-				b.setCharAt(idx, bp[r.nextInt(bp.length - 1)]);
+				ArrayList<Character> a = new ArrayList<Character>();
+				for(int j = 0; j < bp.length - 1; j++)
+					a.add(bp[j]);
+				Collections.shuffle(a, r);
+				b.setCharAt(idx, a.get(0) == b.charAt(idx) ? a.get(1) : a.get(0)); //make a swap does not swap to same bp
 			}else if(mode == 1){
 				b.insert(idx, bp[r.nextInt(bp.length - 1)]);
 			}else{
