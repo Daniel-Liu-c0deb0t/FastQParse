@@ -60,8 +60,8 @@ public class FastQParseMain {
 	
 	private static boolean saveTemp = false; //save to temp file or not
 	
-	private static boolean removeBarRand = true; //remove barcode and random from beginning of DNA (removes quality too)
-	private static boolean removeEnzyme = true; //remove enzyme from beginning of DNA (removes quality too)
+	private static boolean removeBarRand = false; //remove barcode and random from beginning of DNA (removes quality too)
+	private static boolean removeEnzyme = false; //remove enzyme from beginning of DNA (removes quality too)
 	
 	private static double editMaxB = 1.0; //how many edits to allow (0 is exact match) for barcodes
 	private static double editMaxA = 1.0; //how many edits to allow (0 is exact match) for adapters
@@ -2381,10 +2381,10 @@ public class FastQParseMain {
 					clearDir = true;
 				}else if(args[i].equals("--save-temp")){
 					saveTemp = true;
-				}else if(args[i].equals("-kB")){
-					removeBarRand = false;
-				}else if(args[i].equals("-kE")){
-					removeEnzyme = false;
+				}else if(args[i].equals("-tB")){
+					removeBarRand = true;
+				}else if(args[i].equals("-tE")){
+					removeEnzyme = true;
 				}else if(args[i].equals("-eA")){
 					double d = Double.parseDouble(args[++i]);
 					editMaxA = d < 1.0 ? -d : d;
@@ -2478,11 +2478,11 @@ public class FastQParseMain {
 					wildcard = true;
 				}else if(args[i].equals("-S")){
 					singleBarcodeMatchOnly = true;
-				}else if(args[i].equals("-rQ")){
+				}else if(args[i].equals("-tQ")){
 					removeUntrimmedReads = true;
-				}else if(args[i].equals("-rA")){
+				}else if(args[i].equals("-tA")){
 					removeNoAdapterReads = true;
-				}else if(args[i].equals("-rM")){
+				}else if(args[i].equals("-tM")){
 					removeUnmergedReads = true;
 				}else if(args[i].equals("-P")){
 					parallel = true;
